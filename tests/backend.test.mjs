@@ -1,3 +1,4 @@
+import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
 import {test,before,after} from 'node:test';
 import assert from 'node:assert/strict';
@@ -9,7 +10,7 @@ import {build} from 'esbuild';
 import mfPackage from 'miniflare';
 import {downloadUrl} from '../src/payments.js';
 const {Miniflare,convertV4MiniflareOptions}=mfPackage;
-const root=new URL('../',import.meta.url).pathname,origin='https://store.example.invalid';
+const root=fileURLToPath(new URL('../',import.meta.url)),origin='https://store.example.invalid';
 let portalPassword='only-for-test-initial-password';
 let mf,db,files,nonce,cookie,csrf,books,sequence=1000,emailFails=false,staleRates=false,fxMultiplier=1,metaFails=false,checkoutLinkOverride=null;
 const metaRequests=[];

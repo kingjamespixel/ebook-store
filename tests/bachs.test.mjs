@@ -1,3 +1,4 @@
+import {fileURLToPath} from 'node:url';
 import {test,before,after} from 'node:test';
 import assert from 'node:assert/strict';
 import {createHmac} from 'node:crypto';
@@ -8,7 +9,7 @@ import {bachsCheckoutTarget,bachsPaymentIssue,validBachsSignature} from '../src/
 import {COUNTRY_CURRENCIES,SHOP_CURRENCIES,minorUnits} from '../src/markets.js';
 import {initialize} from '../src/store.js';
 const {Miniflare,convertV4MiniflareOptions}=mfPackage;
-const root=new URL('../',import.meta.url).pathname,origin='https://store.example.invalid';
+const root=fileURLToPath(new URL('../',import.meta.url)),origin='https://store.example.invalid';
 const secrets={test:'whsec_sandbox_bachs_signing_secret',live:'whsec_live_bachs_signing_secret'};
 const rates={NGN:1,GHS:.008,KES:.09,MWK:1.3,RWF:1.1,TZS:1.9,UGX:2.5,XAF:.45,XOF:.45,ZMW:.017,USD:.0007};
 const sessions=new Map(),flwTransactions=new Map(),starts=[],messages=[];

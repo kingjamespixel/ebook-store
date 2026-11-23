@@ -1,3 +1,4 @@
+import {fileURLToPath} from 'node:url';
 import {test,before,after,beforeEach} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile,readdir} from 'node:fs/promises';
@@ -7,7 +8,7 @@ import mfPackage from 'miniflare';
 import {hashPassword,hashPortalPassword,checkPortalPassword,decrypt,digest} from '../src/security.js';
 import {totpCode,issueSession} from '../src/portal-security.js';
 const {Miniflare,convertV4MiniflareOptions}=mfPackage;
-const root=new URL('../',import.meta.url).pathname,origin='https://store.example.invalid';
+const root=fileURLToPath(new URL('../',import.meta.url)),origin='https://store.example.invalid';
 const password='only-for-security-regression-test';
 const env={CONFIG_KEY:'security-regression-only-configuration-secret-over-32-characters'};
 let mf,db,basePassword,cookie,csrf,serial=0;

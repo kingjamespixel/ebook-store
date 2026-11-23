@@ -1,3 +1,4 @@
+import {fileURLToPath} from 'node:url';
 import {test,before,after} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile,readdir} from 'node:fs/promises';
@@ -8,7 +9,7 @@ import {SEED_BOOKS} from '../src/seed.js';
 import {startingSales} from '../src/store.js';
 import {BRAND} from '../src/brand.js';
 const {Miniflare,convertV4MiniflareOptions}=mfPackage;
-const root=new URL('../',import.meta.url).pathname,origin='https://new-store.example',password='fresh-install-test-password-only';
+const root=fileURLToPath(new URL('../',import.meta.url)),origin='https://new-store.example',password='fresh-install-test-password-only';
 let mf,db,cookie,csrf;
 before(async()=>{
  const bundle=await build({entryPoints:[root+'src/worker.js'],bundle:true,write:false,format:'esm',platform:'browser',target:'es2022'});
