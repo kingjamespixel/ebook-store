@@ -13,7 +13,7 @@ Last updated: 23 November 2026.
 | Public contact | evergreenorganization29@gmail.com |
 | Seller country and reader countries | Selling internationally, not only to Nigeria. Seller country not stated (pricing in naira and Lagos time). |
 | Domain | evergreenchristian.online (visitors use the apex, not www), registered at Namecheap, DNS on Cloudflare, already in use by another bookshop app and Namecheap email forwarding |
-| Store path | Owner chose (23 Nov 2026) to replace the existing app on the domain. Custom-domain mode: `https://evergreenchristian.online/` redirects to `/books/`; owner portal at `/books/author/`. |
+| Store path | Owner chose (23 Nov 2026) to replace the existing app on the domain. Custom-domain mode: `https://evergreenchristian.online/` redirects to `/books/`; owner portal at `/author/` (owner's request on 23 Nov 2026; `/books/author/` redirects there). |
 | Cloudflare | Owner has an account. Whether the domain's DNS is already on Cloudflare is pending. |
 | Support email and replies | evergreenorganization29@gmail.com |
 | Sending address | Agreed: a sender on evergreenchristian.online (for example books@), replies to the Gmail address. The domain already has email, so its MX records must be kept. |
@@ -55,13 +55,15 @@ Last updated: 23 November 2026.
 
 ## Code changes made for this store
 
+- Owner portal moved to `/author/` at the owner's request (23 Nov 2026). `/author`, `/books/author` and `/books/author/` redirect there with 301, and the portal keeps the private-page headers (no framing, no outside scripts, no-store, noindex). The portal still uses the same private API under `/books/api/admin/`. Path-route mode now also routes `/author` and `/author/*`. Test: "The owner portal is served at /author/ and older portal addresses redirect there".
+
 - NGN gateway choice: new `ngn_gateway` setting (`bachs` or `flutterwave`). It is a sensitive setting, so changing it needs the current password. Existing installs keep Flutterwave unless the owner changes it. Test: "Naira can use Bachs card and bank transfer and still needs signed, verified payment before delivery".
 - Lagos time for price windows, reports and CSV export, with the rate-window test updated to match.
 - Store name used in the support email subject, page titles, CSV file name and starting HTML.
 
 ## Next actions
 
-1. Sign in at https://evergreenchristian.online/books/author/ with username `owner` and the private initial password, change the password and turn on authenticator login. Keep the recovery codes private.
+1. Sign in at https://evergreenchristian.online/author/ with username `owner` and the private initial password, change the password and turn on authenticator login. Keep the recovery codes private.
 2. In the portal, set "Gateway for NGN payments" to Bachs, tick the currencies (including USD (card) if approved), and enter the Bachs sandbox API key and sandbox webhook secret.
 3. In the Bachs dashboard, add the sandbox webhook https://evergreenchristian.online/books/api/bachs/webhook/test with events checkout.completed, collection.succeeded, collection.failed, collection.underpaid and checkout.expired.
 4. Set up Resend with a sender on evergreenchristian.online (Resend adds its own records on a send subdomain; keep the existing MX and SPF).

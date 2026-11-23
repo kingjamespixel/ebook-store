@@ -35,7 +35,7 @@ Use Workers Builds for this Worker and static asset application, not static-only
 
 The build identity needs the current permissions for its Worker, routes, D1 migrations and private R2 operations. Have Claude verify current requirements, including build-artifact permissions if the dashboard asks for them. Put tokens in secure build secrets and confirm their account scope.
 
-Run checks, tests and a dry-run build before deployment. After actual deployment, verify this Worker's success status, domain, HTTPS, /books/, /books/author/ and the catalog API. An unrelated successful build or a dry run does not prove this shop is live.
+Run checks, tests and a dry-run build before deployment. After actual deployment, verify this Worker's success status, domain, HTTPS, /books/, /author/ and the catalog API. An unrelated successful build or a dry run does not prove this shop is live.
 
 ## Storage and schedules
 

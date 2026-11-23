@@ -15,7 +15,7 @@ export async function configure(){
  const input=JSON.parse(await readFile(root+'store.config.json','utf8')),{domain,origin}=deploymentConfig(input);
  const config=JSON.parse(await readFile(root+'wrangler.json','utf8'));
  config.name=input.worker_name;config.vars={...config.vars,PUBLIC_ORIGIN:origin};config.workers_dev=false;config.preview_urls=false;
- config.routes=input.deployment_mode==='custom-domain'?[{pattern:domain,custom_domain:true}]:[{pattern:domain+'/books/*',zone_name:domain},{pattern:domain+'/books',zone_name:domain}];
+ config.routes=input.deployment_mode==='custom-domain'?[{pattern:domain,custom_domain:true}]:[{pattern:domain+'/books/*',zone_name:domain},{pattern:domain+'/books',zone_name:domain},{pattern:domain+'/author/*',zone_name:domain},{pattern:domain+'/author',zone_name:domain}];
  config.d1_databases[0].database_name=input.database_name;delete config.d1_databases[0].database_id;
  config.r2_buckets[0].bucket_name=input.bucket_name;
  await writeFile(root+'wrangler.json',JSON.stringify(config,null,2)+'\n');

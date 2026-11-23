@@ -6,7 +6,7 @@ import {checkout,verifyOrder,privateOrder,download,reconcile,receiptEmail,schedu
 import {authorApi} from './author.js';
 import {receiveBachsWebhook} from './bachs.js';
 import {browserEvent,flushMeta} from './meta.js';
-const BASE='/books',API=BASE+'/api/';
+const BASE='/books',API=BASE+'/api/',PORTAL='/author';
 const headers={
   'X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','X-Frame-Options':'SAMEORIGIN',
   'Permissions-Policy':'camera=(), microphone=(), geolocation=()',
@@ -22,9 +22,16 @@ async function reviews(env,data) {
   assert(!data.website&&data.consent===true&&name.length>=2&&name.length<=60&&text.length>=10&&text.length<=3000&&Number.isInteger(rating)&&rating>=1&&rating<=5,400,'Add your display name, a 1 to 5 star rating and a short review.');
   await env.DB.prepare('INSERT INTO reviews(id,book_id,buyer_email,name,rating,text,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(book_id,buyer_email) DO UPDATE SET name=excluded.name,rating=excluded.rating,text=excluded.text,updated_at=excluded.updated_at').bind(crypto.randomUUID(),data.book,order.email,name,rating,text,now(),now()).run();return {ok:true};
 }
+async function portalPage(env,req,url) {
+  const asset=await env.ASSETS.fetch(new Request(url.origin+'/author.html',req));
+  return new HTMLRewriter().on('[data-store-name]',{element(el){el.setInnerContent(escapeHtml(BRAND.store_name));}}).on('title',{element(el){el.setInnerContent('Author Portal | '+escapeHtml(BRAND.store_name));}}).on('img',{element(el){el.setAttribute('src',BRAND.logo_url);el.setAttribute('alt',BRAND.store_name);}}).transform(asset);
+}
 async function handle(env,req,ctx) {
   const url=new URL(req.url),path=url.pathname;
   if(path==='/')return Response.redirect(url.origin+BASE+'/',302);
+  // The owner portal lives at /author/. The older /books/author/ address redirects there.
+  if(path===PORTAL||path===BASE+PORTAL||path===BASE+PORTAL+'/')return Response.redirect(url.origin+PORTAL+'/'+url.search,301);
+  if(path===PORTAL+'/')return portalPage(env,req,url);
   if(path===BASE)return Response.redirect(url.origin+BASE+'/'+url.search,308);
   if(!path.startsWith(BASE+'/'))return new Response('Page not found',{status:404});
   const relative=path.slice(BASE.length);
@@ -65,7 +72,6 @@ async function handle(env,req,ctx) {
     }
     throw new HttpError(404,'We could not find that action.');
   }
-  if(relative==='/author'||relative==='/author/'){const asset=await env.ASSETS.fetch(new Request(url.origin+'/author.html',req));return new HTMLRewriter().on('[data-store-name]',{element(el){el.setInnerContent(escapeHtml(BRAND.store_name));}}).on('title',{element(el){el.setInnerContent('Author Portal | '+escapeHtml(BRAND.store_name));}}).on('img',{element(el){el.setAttribute('src',BRAND.logo_url);el.setAttribute('alt',BRAND.store_name);}}).transform(asset);}
   const slug=decodeURIComponent(relative.replace(/^\//,'').replace(/\/$/,''));
   const config={page:'home',book:null,preview:false,base:BASE,api:BASE+'/api',assets:BASE+'/assets/',logo:BRAND.logo_url,store_name:BRAND.store_name,tagline:BRAND.tagline,homepage_title:BRAND.homepage_title,homepage_intro:BRAND.homepage_intro,catalog_intro:BRAND.catalog_intro,support_email:BRAND.support_email,books:SEED_BOOKS};
   let title=BRAND.store_name+' | Books',description=BRAND.tagline,image=BRAND.logo_url;
@@ -100,7 +106,7 @@ export default {
     await discardBody(req);
     const out=new Response(response.body,response);for(const [key,value] of Object.entries(headers))out.headers.set(key,value);
     if(url.protocol==='https:'&&!local)out.headers.set('Strict-Transport-Security','max-age=31536000');
-    const privatePath=/^\/books\/(?:author(?:\/|$)|api\/admin(?:\/|$)|download(?:\/|$))/.test(url.pathname);
+    const privatePath=/^\/(?:author(?:\/|$)|books\/(?:author(?:\/|$)|api\/admin(?:\/|$)|download(?:\/|$)))/.test(url.pathname);
     if(privatePath){
       out.headers.set('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'");
       out.headers.set('X-Frame-Options','DENY');out.headers.set('Cache-Control','private, no-store');out.headers.set('X-Robots-Tag','noindex, nofollow');

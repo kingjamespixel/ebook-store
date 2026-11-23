@@ -27,7 +27,7 @@ npm run build
 
 The configure command writes your domain and resource names into wrangler.json. It refuses placeholder domains and missing contact details. The delivered manifest has no routes and therefore no destination until you configure it. This command changes local files only.
 
-The app currently uses /books/ and its portal uses /books/author/. On a fresh hostname, deployment_mode custom-domain serves the Worker on your own hostname and redirects / to /books/. If another website already uses the hostname, choose path-route and have Claude check the actual Cloudflare zone and proxied DNS. Another base path needs coordinated source and test changes.
+The app uses /books/ and its owner portal uses /author/ (the older /books/author/ address redirects there). On a fresh hostname, deployment_mode custom-domain serves the Worker on your own hostname and redirects / to /books/. If another website already uses the hostname (it must not need its own /author/ page), choose path-route and have Claude check the actual Cloudflare zone and proxied DNS. Another base path needs coordinated source and test changes.
 
 For a local run, copy .dev.vars.example to .dev.vars, generate a fresh random CONFIG_KEY, choose a private initial password of at least 15 characters, apply local D1 migrations and run npm run dev. Keep local secrets out of Git. The initial username defaults to owner; AUTHOR_INITIAL_USERNAME can change it at first initialization. Change the initial password in the portal and enable authenticator login before live checkout.
 

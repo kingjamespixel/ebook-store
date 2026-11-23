@@ -146,10 +146,20 @@ test('Repeated failed logins and sensitive-action guesses are throttled',async()
 });
 
 test('Private pages reject framing and outside scripts, and plain HTTP never accepts a login',async()=>{
-  for(const path of ['/books/author/','/books/download/','/books/api/admin/session']){
+  for(const path of ['/author/','/books/download/','/books/api/admin/session']){
     const r=await mf.dispatchFetch(origin+path);assert.equal(r.status,200);const csp=r.headers.get('Content-Security-Policy');assert.match(csp,/script-src 'self';/);assert.match(csp,/frame-ancestors 'none'/);assert.equal(csp.includes('facebook'),false);assert.equal(csp.includes('bachs.io'),false);assert.equal(r.headers.get('X-Frame-Options'),'DENY');assert.match(r.headers.get('Cache-Control'),/no-store/);assert.equal(r.headers.get('Strict-Transport-Security'),'max-age=31536000');
   }
   const frame=await mf.dispatchFetch(origin+'/books/pixel-frame.html');assert.match(frame.headers.get('Content-Security-Policy'),/sandbox allow-scripts/);assert.equal(frame.headers.has('X-Frame-Options'),false);
   const insecure=await api('admin/login',{method:'POST',secure:false,data:{username:'owner',password}});assert.equal(insecure.response.status,400);assert.equal(insecure.response.headers.has('Set-Cookie'),false);
-  const redirect=await mf.dispatchFetch('http://store.example.invalid/books/author/',{redirect:'manual'});assert.equal(redirect.status,308);assert.equal(redirect.headers.get('Location'),origin+'/books/author/');
+  const redirect=await mf.dispatchFetch('http://store.example.invalid/author/',{redirect:'manual'});assert.equal(redirect.status,308);assert.equal(redirect.headers.get('Location'),origin+'/author/');
+});
+
+test('The owner portal is served at /author/ and older portal addresses redirect there',async()=>{
+  const page=await mf.dispatchFetch(origin+'/author/',{redirect:'manual'});assert.equal(page.status,200);const html=await page.text();
+  assert.match(html,/<title>Author Portal \|/);assert.match(html,/\/books\/author\.js/);assert.equal(page.headers.get('X-Robots-Tag'),'noindex, nofollow');
+  for(const [from,to] of [['/author','/author/'],['/books/author','/author/'],['/books/author/','/author/'],['/books/author/?next=1','/author/?next=1']]){
+    const r=await mf.dispatchFetch(origin+from,{redirect:'manual'});assert.equal(r.status,301,from);assert.equal(r.headers.get('Location'),origin+to,from);assert.equal(r.headers.get('X-Frame-Options'),'DENY',from);
+  }
+  // Other paths outside /books/ stay unknown.
+  assert.equal((await mf.dispatchFetch(origin+'/authors/',{redirect:'manual'})).status,404);
 });
