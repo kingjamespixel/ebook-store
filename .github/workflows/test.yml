@@ -34,12 +34,12 @@ jobs:
           {
             echo '## Test results'
             echo '```'
-            grep -E '^ℹ (tests|pass|fail)' test-output.txt || true
+            grep -E '^(ℹ|#) (tests|pass|fail) ' test-output.txt || true
             echo '```'
-            if grep -q '^✖' test-output.txt; then
+            if grep -qE '^(✖|not ok)' test-output.txt; then
               echo '### Failures'
               echo '```'
-              grep -A 12 '^✖' test-output.txt | head -150
+              grep -E -A 14 '^(✖|not ok)' test-output.txt | head -200
               echo '```'
             fi
           } >> "$GITHUB_STEP_SUMMARY"
