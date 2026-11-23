@@ -10,5 +10,5 @@
   "database_name": "evergreen-books",
   "bucket_name": "evergreen-book-files",
   "logo_url": "/books/assets/evergreen-logo.jpg",
-  "deployment_mode": "path-route"
+  "deployment_mode": "custom-domain"
 }

@@ -13,7 +13,7 @@ Last updated: 23 November 2026.
 | Public contact | evergreenorganization29@gmail.com |
 | Seller country and reader countries | Selling internationally, not only to Nigeria. Seller country not stated (pricing in naira and Lagos time). |
 | Domain | evergreenchristian.online (visitors use the apex, not www), registered at Namecheap, DNS on Cloudflare, already in use by another bookshop app and Namecheap email forwarding |
-| Store path | `https://evergreenchristian.online/books/` (path-route mode, existing site kept) |
+| Store path | Owner chose (23 Nov 2026) to replace the existing app on the domain. Custom-domain mode: `https://evergreenchristian.online/` redirects to `/books/`; owner portal at `/books/author/`. |
 | Cloudflare | Owner has an account. Whether the domain's DNS is already on Cloudflare is pending. |
 | Support email and replies | evergreenorganization29@gmail.com |
 | Sending address | Agreed: a sender on evergreenchristian.online (for example books@), replies to the Gmail address. The domain already has email, so its MX records must be kept. |
@@ -38,8 +38,8 @@ Last updated: 23 November 2026.
 | Linux tests (GitHub Actions) | Passing | Workflow `.github/workflows/test.yml` runs `npm ci`, `npm run check`, `npm test` and `npm run build` on Ubuntu with Node 22, writes totals and failures to the run summary, and lists failing tests as public annotations. An intermittent "fetch failed" in the security tests was traced to responses sent while the request body was unread; the Worker now reads any unread body (up to 1 MB) first. After the fix, 8 parallel repeat runs (run #13) and the main run (#12, commit 703e15a) passed. |
 | Windows local tests | 105 of 110 pass | The 5 remaining failures need tools this PC lacks: Python (ZIP check), symlink permission and a Unix-style npm (deploy-script tests). |
 | Business identity and copy | Done (copy to confirm) | store.config.json now holds Evergreen Christian, the support email, the domain and resource names. Tagline approved by the owner (reworded 23 Nov 2026); homepage text is a draft the owner can change. Fixed "Bookshop" strings now use the store name. |
-| Deployment config | Generated | `npm run configure` wrote path routes for `evergreenchristian.online/books/*` and `/books` in zone `evergreenchristian.online`, PUBLIC_ORIGIN `https://evergreenchristian.online`, Worker `evergreen-books`, D1 `evergreen-books`, R2 `evergreen-book-files`. |
-| Domain and Cloudflare | Decision needed | Public DNS check on 23 Nov 2026: nameservers are Cloudflare (mack, mariah), so the zone is active on Cloudflare. The apex already serves a different bookshop app through Cloudflare (title "Bookshop | Evergreen Christian", pages /, /cart/, /contact/, /author/, no published books); /books/ returns 404. www is a CNAME to Namecheap's parking page. Email uses Namecheap forwarding (eforward1-5 MX) with SPF `include:spf.efwd.registrar-servers.com`; no DMARC record. These mail records must be kept. Owner must decide whether this store replaces the existing app or runs beside it at /books/. |
+| Deployment config | Generated | `npm run configure` (custom-domain mode) wrote a Custom Domain route for `evergreenchristian.online`, PUBLIC_ORIGIN `https://evergreenchristian.online`, Worker `evergreen-books`, D1 `evergreen-books`, R2 `evergreen-book-files`. |
+| Domain and Cloudflare | Decision needed | Public DNS check on 23 Nov 2026: nameservers are Cloudflare (mack, mariah), so the zone is active on Cloudflare. The apex already serves a different bookshop app through Cloudflare (title "Bookshop | Evergreen Christian", pages /, /cart/, /contact/, /author/, no published books); /books/ returns 404. www is a CNAME to Namecheap's parking page. Email uses Namecheap forwarding (eforward1-5 MX) with SPF `include:spf.efwd.registrar-servers.com`; no DMARC record. These mail records must be kept. Decision: this store replaces the existing app. The old app's link to the domain must be removed in Cloudflare before the first deploy. |
 | Independent D1 and private R2 | Not created | Created by `npm run deploy` in Workers Builds after Cloudflare is ready. |
 | Owner login and authenticator | Not initialized | Needs AUTHOR_INITIAL_PASSWORD as a private build secret before the first deploy. |
 | Catalog, covers and PDFs | Empty | Owner adds books in the portal. SEED_BOOKS stays empty. |
@@ -60,7 +60,8 @@ Last updated: 23 November 2026.
 
 ## Next actions
 
-1. Owner confirms: site hostname (apex or www), refund conditions, tagline wording, and optionally sends a larger logo file.
-2. Set up Workers Builds on Cloudflare for this repository and add AUTHOR_INITIAL_PASSWORD as a private build secret.
-3. First deploy, then sign in to the portal, change the password, turn on the authenticator and set the NGN gateway to Bachs.
-4. Enter Bachs sandbox keys and webhook secrets in the portal, then run sandbox purchases.
+1. In Cloudflare, find the existing app that serves evergreenchristian.online and remove its domain (keep the app itself for now).
+2. Create a Cloudflare API token for builds: Workers Scripts Edit, D1 Edit, Workers R2 Storage Edit, Account Settings Read (account); Workers Routes Edit (zone evergreenchristian.online); User Details Read and Memberships Read (user).
+3. Create the Worker `evergreen-books` from the GitHub repository with Workers Builds: branch `main`, build command `npm run check`, deploy command `npm run deploy`, root directory empty, the new API token, and the build secret AUTHOR_INITIAL_PASSWORD (15+ characters, kept privately).
+4. Check the build log, then sign in at /books/author/, change the password and enable the authenticator.
+5. Set the NGN gateway to Bachs, enter Bachs sandbox keys and webhook secrets, and run sandbox purchases.
