@@ -11,22 +11,23 @@ Last updated: 23 November 2026.
 | Store name | Evergreen Christian |
 | Registered business name | Not stated |
 | Public contact | evergreenorganization29@gmail.com |
-| Seller country and reader countries | Pending (pricing in naira suggests Nigeria) |
-| Domain | evergreenchristian.online, registered at Namecheap, already in use by another site or service |
+| Seller country and reader countries | Selling internationally, not only to Nigeria. Seller country not stated (pricing in naira and Lagos time). |
+| Domain | evergreenchristian.online, registered at Namecheap, on Cloudflare according to the owner, already in use by a website and email |
 | Store path | `https://evergreenchristian.online/books/` (path-route mode, existing site kept) |
 | Cloudflare | Owner has an account. Whether the domain's DNS is already on Cloudflare is pending. |
 | Support email and replies | evergreenorganization29@gmail.com |
-| Sending address | Pending. Resend cannot send from a gmail.com address, so a sender on evergreenchristian.online is needed. |
-| Payment provider | Bachs only. Owner reports the account is approved for all currencies. |
+| Sending address | Agreed: a sender on evergreenchristian.online (for example books@), replies to the Gmail address. The domain already has email, so its MX records must be kept. |
+| Payment provider | Bachs only. Owner reports the account is approved for all currencies, including USD card. |
 | Base currency | NGN. Buyers can choose any enabled currency through Bachs. |
 | Report timezone | Lagos time (WAT) |
 | Books | Ready. Owner will add them through the portal. Featured book to be chosen later. |
-| Logo | Owner has one. File not supplied yet. |
+| Logo | Added as public/assets/evergreen-logo.jpg (200x200 copy from chat). A larger original would look sharper. |
 | Colours | Green and white with a little black (the current design is already green and white) |
 | Support response time | No promise to publish |
-| Refund and cancellation rules | Pending |
+| Refund and cancellation rules | Approved refunds paid back within 3 to 7 days. The refund conditions on the terms page are a draft for the owner to confirm. |
 | Checkout reminder email | Yes, once notices are in place |
 | Meta Pixel and CAPI | Yes, both. Owner has a Meta business account. |
+| Background | This store is a replica of the owner's own store (christianpositive.online) for the owner's brother. It uses its own accounts, keys, database and storage; nothing is copied from the other store's portal or data. |
 
 ## Where things stand
 
@@ -42,10 +43,11 @@ Last updated: 23 November 2026.
 | Independent D1 and private R2 | Not created | Created by `npm run deploy` in Workers Builds after Cloudflare is ready. |
 | Owner login and authenticator | Not initialized | Needs AUTHOR_INITIAL_PASSWORD as a private build secret before the first deploy. |
 | Catalog, covers and PDFs | Empty | Owner adds books in the portal. SEED_BOOKS stays empty. |
+| USD for other countries | Code ready | The portal currency list now has "USD (card)". Buyers outside the listed countries see US$ prices and pay by Bachs card (`USD_CARD`). Tested. |
 | Payments | Code ready, keys not entered | NGN can now use Bachs card (`NGN_CARD`) and bank transfer (`NGN_BANK_TRANSFER`), chosen with the new "Gateway for NGN payments" setting in the portal. Other currencies use Bachs mobile money. Sandbox tests pending. |
 | Lagos time | Done | Price windows change at midnight and noon Lagos time. Sales date filters, portal times and the CSV export use Africa/Lagos. |
 | Resend and support inbox | Pending | Needs a sending domain on evergreenchristian.online, verified in Resend. |
-| Privacy, terms, refunds, cancellation | Partial | The privacy page now names the gateway that handles naira. Terms, refund, cancellation and delivery notices still need the owner's rules. |
+| Privacy, terms, refunds, cancellation | Draft published in code | New /books/terms/ page covers purchase, prices, delivery, cancellation, refunds (3 to 7 working days once approved) and consumer rights. Linked in the footer and the checkout consent. Refund conditions await owner confirmation. |
 | Meta Pixel and CAPI | Pending setup | Owner wants both. Pixel ID and CAPI token are entered privately in the portal later. Consent requirements still to review. |
 | Checkout reminders | Off for now | Owner wants them. Turn on after the notices are published. |
 | Live launch | Not deployed | Nothing is deployed. |
@@ -58,7 +60,7 @@ Last updated: 23 November 2026.
 
 ## Next actions
 
-1. Owner confirms: DNS on Cloudflare, site hostname, sending email address, refund rules, logo file, tagline wording.
+1. Owner confirms: site hostname (apex or www), refund conditions, tagline wording, and optionally sends a larger logo file.
 2. Set up Workers Builds on Cloudflare for this repository and add AUTHOR_INITIAL_PASSWORD as a private build secret.
 3. First deploy, then sign in to the portal, change the password, turn on the authenticator and set the NGN gateway to Bachs.
 4. Enter Bachs sandbox keys and webhook secrets in the portal, then run sandbox purchases.

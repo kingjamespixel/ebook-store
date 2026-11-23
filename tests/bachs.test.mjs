@@ -123,6 +123,14 @@ test('Naira can use Bachs card and bank transfer and still needs signed, verifie
   assert.notEqual((await verify(under)).data.status,'paid');
   await configure({ngn_gateway:'flutterwave'});const back=await order('NGN','NG');assert.equal(back.row.provider,'flutterwave');
 });
+test('Buyers in other countries can pay in USD through a Bachs card checkout when USD is enabled',async()=>{
+  await configure({currencies:[...SHOP_CURRENCIES,'USD']});
+  const c=(await api('catalog',{country:'US'})).data;assert.equal(c.currency,'USD');assert.ok(c.currencies.includes('USD'));
+  const o=await order('USD','US');assert.equal(o.response.status,200,JSON.stringify(o.data));const request=starts.at(-1);
+  assert.equal(o.row.provider,'bachs');assert.deepEqual(request.body.payment_method_types,['USD_CARD']);assert.equal(request.body.pricing.currency,'USD');assert.equal(Number(request.body.pricing.amount),o.amount);
+  complete(o,{payment_method:'CARD'});assert.equal((await verify(o)).data.status,'pending');await deliver(o);assert.equal((await verify(o)).data.status,'paid');
+  await configure({currencies:SHOP_CURRENCIES});
+});
 test('A browser return or a completed API session cannot deliver books without a signed webhook',async()=>{
   const o=await order('KES','KE');complete(o);const previousReads=reads;
   const result=await verify(o,{checkout_id:'chk_another',status:'successful'});assert.equal(result.data.status,'pending');assert.equal(result.data.books,undefined);assert.equal(reads,previousReads+1);

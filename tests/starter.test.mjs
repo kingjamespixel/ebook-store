@@ -39,3 +39,8 @@ test('The delivered deployment manifest has no destination until its owner confi
  const own={...publicConfig,domain:'new-publisher.org',support_email:'help@new-publisher.org'};assert.equal(deploymentConfig(own).origin,'https://new-publisher.org');
  for(const domain of ['example.com','example.test','store.example.invalid','https://new-publisher.org','new-publisher.org/books'])assert.throws(()=>deploymentConfig({...own,domain}));
 });
+test('The terms and refund page has its own address and cannot be taken by a book link',async()=>{
+ const response=await mf.dispatchFetch(origin+'/books/terms/');assert.equal(response.status,200);const html=await response.text();assert.match(html,/"page":"terms"/);assert.match(html,/<title>Terms \|/);
+ const login=await mf.dispatchFetch(origin+'/books/api/admin/login',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify({username:'owner',password})});const data=await login.json();const auth={Origin:origin,'Content-Type':'application/json',Cookie:login.headers.get('Set-Cookie').split(';')[0],'X-BS-CSRF':data.csrf};
+ const taken=await mf.dispatchFetch(origin+'/books/api/admin/books',{method:'POST',headers:auth,body:JSON.stringify({title:'Terms clash',slug:'terms',price_ngn:1000,active:true})});assert.equal(taken.status,400);
+});
