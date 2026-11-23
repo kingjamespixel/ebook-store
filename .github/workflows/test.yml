@@ -43,4 +43,11 @@ jobs:
               echo '```'
             fi
           } >> "$GITHUB_STEP_SUMMARY"
+          # Annotations are visible on the run page without signing in.
+          grep -E '^(✖|not ok) ' test-output.txt | grep -v 'failing tests' | sort -u | head -10 | while read -r line; do
+            echo "::error title=Failing test::${line}"
+          done
+          grep -E -A 6 '^(✖|not ok) ' test-output.txt | grep -E "(error|Error|expected|actual|message):" | sort -u | head -10 | while read -r line; do
+            echo "::warning title=Failure detail::${line}"
+          done
       - run: npm run build
