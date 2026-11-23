@@ -39,7 +39,7 @@ Last updated: 23 November 2026.
 | Windows local tests | 105 of 110 pass | The 5 remaining failures need tools this PC lacks: Python (ZIP check), symlink permission and a Unix-style npm (deploy-script tests). |
 | Business identity and copy | Done (copy to confirm) | store.config.json now holds Evergreen Christian, the support email, the domain and resource names. Tagline approved by the owner (reworded 23 Nov 2026); homepage text is a draft the owner can change. Fixed "Bookshop" strings now use the store name. |
 | Deployment config | Generated | `npm run configure` (custom-domain mode) wrote a Custom Domain route for `evergreenchristian.online`, PUBLIC_ORIGIN `https://evergreenchristian.online`, Worker `evergreen-books`, D1 `evergreen-books`, R2 `evergreen-book-files`. |
-| Domain and Cloudflare | Decision needed | Public DNS check on 23 Nov 2026: nameservers are Cloudflare (mack, mariah), so the zone is active on Cloudflare. The apex already serves a different bookshop app through Cloudflare (title "Bookshop | Evergreen Christian", pages /, /cart/, /contact/, /author/, no published books); /books/ returns 404. www is a CNAME to Namecheap's parking page. Email uses Namecheap forwarding (eforward1-5 MX) with SPF `include:spf.efwd.registrar-servers.com`; no DMARC record. These mail records must be kept. Decision: this store replaces the existing app. The old app's link to the domain must be removed in Cloudflare before the first deploy. |
+| Domain and Cloudflare | Ready to switch | Checked in the Cloudflare dashboard on 23 Nov 2026 (account of evergreenorganization29). Zone `evergreenchristian.online` is active on the Free plan. The current apex site is hosted outside this account: two DNS-only A records (`172.66.3.26`, `162.159.143.30`) plus a `_cf-custom-hostname` TXT record point to another provider's custom-hostname service. The zone has no Workers Routes and no Worker Custom Domains. The existing Worker `evergreen-author` only runs on workers.dev and is not linked to the domain. Plan: delete the two apex A records just before the first deploy so the Custom Domain can be created (values recorded here so they can be restored). Keep the MX, SPF, `_openai-site-verification` TXT and www records unchanged. |
 | Independent D1 and private R2 | Not created | Created by `npm run deploy` in Workers Builds after Cloudflare is ready. |
 | Owner login and authenticator | Not initialized | Needs AUTHOR_INITIAL_PASSWORD as a private build secret before the first deploy. |
 | Catalog, covers and PDFs | Empty | Owner adds books in the portal. SEED_BOOKS stays empty. |
@@ -60,7 +60,7 @@ Last updated: 23 November 2026.
 
 ## Next actions
 
-1. In Cloudflare, find the existing app that serves evergreenchristian.online and remove its domain (keep the app itself for now).
+1. Just before the first deploy, delete the two apex A records (172.66.3.26 and 162.159.143.30). Nothing else in DNS changes.
 2. Create a Cloudflare API token for builds: Workers Scripts Edit, D1 Edit, Workers R2 Storage Edit, Account Settings Read (account); Workers Routes Edit (zone evergreenchristian.online); User Details Read and Memberships Read (user).
 3. Create the Worker `evergreen-books` from the GitHub repository with Workers Builds: branch `main`, build command `npm run check`, deploy command `npm run deploy`, root directory empty, the new API token, and the build secret AUTHOR_INITIAL_PASSWORD (15+ characters, kept privately).
 4. Check the build log, then sign in at /books/author/, change the password and enable the authenticator.
