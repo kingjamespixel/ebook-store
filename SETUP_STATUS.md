@@ -39,8 +39,8 @@ Last updated: 23 November 2026.
 | Windows local tests | 105 of 110 pass | The 5 remaining failures need tools this PC lacks: Python (ZIP check), symlink permission and a Unix-style npm (deploy-script tests). |
 | Business identity and copy | Done (copy to confirm) | store.config.json now holds Evergreen Christian, the support email, the domain and resource names. Tagline approved by the owner (reworded 23 Nov 2026); homepage text is a draft the owner can change. Fixed "Bookshop" strings now use the store name. |
 | Deployment config | Generated | `npm run configure` (custom-domain mode) wrote a Custom Domain route for `evergreenchristian.online`, PUBLIC_ORIGIN `https://evergreenchristian.online`, Worker `evergreen-books`, D1 `evergreen-books`, R2 `evergreen-book-files`. |
-| Domain and Cloudflare | Ready to switch | Checked in the Cloudflare dashboard on 23 Nov 2026 (account of evergreenorganization29). Zone `evergreenchristian.online` is active on the Free plan. The current apex site is hosted outside this account: two DNS-only A records (`172.66.3.26`, `162.159.143.30`) plus a `_cf-custom-hostname` TXT record point to another provider's custom-hostname service. The zone has no Workers Routes and no Worker Custom Domains. The existing Worker `evergreen-author` only runs on workers.dev and is not linked to the domain. Plan: delete the two apex A records just before the first deploy so the Custom Domain can be created (values recorded here so they can be restored). Keep the MX, SPF, `_openai-site-verification` TXT and www records unchanged. |
-| Independent D1 and private R2 | Not created | Created by `npm run deploy` in Workers Builds after Cloudflare is ready. |
+| Domain and Cloudflare | Done | 23 Nov 2026: the two old apex A records (172.66.3.26, 162.159.143.30) that pointed to the previous outside site were deleted. Worker `evergreen-books` now owns `evergreenchristian.online` as a Custom Domain (Cloudflare's nameserver answers 104.21.35.152 / 172.67.176.254). MX, SPF, www, `_cf-custom-hostname` and `_openai-site-verification` records were left unchanged. The unrelated Worker `evergreen-author` (workers.dev only) was left untouched. |
+| Independent D1 and private R2 | Done | Created by the first Workers Build: D1 `evergreen-books` (all 8 migrations applied) and R2 `evergreen-book-files`. The deploy script verified that the bucket has public development access disabled and no public custom domain. |
 | Owner login and authenticator | Not initialized | Needs AUTHOR_INITIAL_PASSWORD as a private build secret before the first deploy. |
 | Catalog, covers and PDFs | Empty | Owner adds books in the portal. SEED_BOOKS stays empty. |
 | USD for other countries | Code ready | The portal currency list now has "USD (card)". Buyers outside the listed countries see US$ prices and pay by Bachs card (`USD_CARD`). Tested. |
@@ -50,7 +50,8 @@ Last updated: 23 November 2026.
 | Privacy, terms, refunds, cancellation | Draft published in code | New /books/terms/ page covers purchase, prices, delivery, cancellation, refunds (3 to 7 working days once approved) and consumer rights. Linked in the footer and the checkout consent. Refund conditions await owner confirmation. |
 | Meta Pixel and CAPI | Pending setup | Owner wants both. Pixel ID and CAPI token are entered privately in the portal later. Consent requirements still to review. |
 | Checkout reminders | Off for now | Owner wants them. Turn on after the notices are published. |
-| Live launch | Not deployed | Nothing is deployed. |
+| Deployment | Live in setup mode | Workers Builds connected to kingjamespixel/ebook-store, branch `main`, build `npm run check`, deploy `npm run deploy`, preview builds off, build token "evergreen-books build" (auto-created), build secret AUTHOR_INITIAL_PASSWORD set by the owner. Build a747e9e0 succeeded on 23 Nov 2026 (version af2233bd). Checked: `/` redirects to `/books/`; `/books/`, `/books/author/`, `/books/terms/`, `/books/privacy/`, catalog API and logo return 200; http redirects to https; HSTS and CSP headers present; catalog is empty and checkout is in setup mode. Every push to `main` now redeploys automatically. |
+| Live launch | Not live for sales | Checkout stays in setup mode until the portal password is changed, the authenticator is on, Bachs keys are entered and sandbox purchases pass. |
 
 ## Code changes made for this store
 
@@ -60,8 +61,9 @@ Last updated: 23 November 2026.
 
 ## Next actions
 
-1. Just before the first deploy, delete the two apex A records (172.66.3.26 and 162.159.143.30). Nothing else in DNS changes.
-2. Create a Cloudflare API token for builds: Workers Scripts Edit, D1 Edit, Workers R2 Storage Edit, Account Settings Read (account); Workers Routes Edit (zone evergreenchristian.online); User Details Read and Memberships Read (user).
-3. Create the Worker `evergreen-books` from the GitHub repository with Workers Builds: branch `main`, build command `npm run check`, deploy command `npm run deploy`, root directory empty, the new API token, and the build secret AUTHOR_INITIAL_PASSWORD (15+ characters, kept privately).
-4. Check the build log, then sign in at /books/author/, change the password and enable the authenticator.
-5. Set the NGN gateway to Bachs, enter Bachs sandbox keys and webhook secrets, and run sandbox purchases.
+1. Sign in at https://evergreenchristian.online/books/author/ with username `owner` and the private initial password, change the password and turn on authenticator login. Keep the recovery codes private.
+2. In the portal, set "Gateway for NGN payments" to Bachs, tick the currencies (including USD (card) if approved), and enter the Bachs sandbox API key and sandbox webhook secret.
+3. In the Bachs dashboard, add the sandbox webhook https://evergreenchristian.online/books/api/bachs/webhook/test with events checkout.completed, collection.succeeded, collection.failed, collection.underpaid and checkout.expired.
+4. Set up Resend with a sender on evergreenchristian.online (Resend adds its own records on a send subdomain; keep the existing MX and SPF).
+5. Upload a test book, switch to test mode and run sandbox purchases.
+6. Owner confirms the refund wording on /books/terms/.
