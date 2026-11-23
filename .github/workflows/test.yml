@@ -21,5 +21,26 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npm run check
-      - run: npm test
+      - name: npm test
+        shell: bash
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee test-output.txt
+      - name: Summarize test results
+        if: always()
+        shell: bash
+        run: |
+          [ -f test-output.txt ] || exit 0
+          {
+            echo '## Test results'
+            echo '```'
+            grep -E '^ℹ (tests|pass|fail)' test-output.txt || true
+            echo '```'
+            if grep -q '^✖' test-output.txt; then
+              echo '### Failures'
+              echo '```'
+              grep -A 12 '^✖' test-output.txt | head -150
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
       - run: npm run build
