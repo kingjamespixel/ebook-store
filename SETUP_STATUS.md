@@ -12,7 +12,7 @@ Last updated: 23 November 2026.
 | Registered business name | Not stated |
 | Public contact | evergreenorganization29@gmail.com |
 | Seller country and reader countries | Selling internationally, not only to Nigeria. Seller country not stated (pricing in naira and Lagos time). |
-| Domain | evergreenchristian.online, registered at Namecheap, on Cloudflare according to the owner, already in use by a website and email |
+| Domain | evergreenchristian.online (visitors use the apex, not www), registered at Namecheap, DNS on Cloudflare, already in use by another bookshop app and Namecheap email forwarding |
 | Store path | `https://evergreenchristian.online/books/` (path-route mode, existing site kept) |
 | Cloudflare | Owner has an account. Whether the domain's DNS is already on Cloudflare is pending. |
 | Support email and replies | evergreenorganization29@gmail.com |
@@ -39,7 +39,7 @@ Last updated: 23 November 2026.
 | Windows local tests | 105 of 110 pass | The 5 remaining failures need tools this PC lacks: Python (ZIP check), symlink permission and a Unix-style npm (deploy-script tests). |
 | Business identity and copy | Done (copy to confirm) | store.config.json now holds Evergreen Christian, the support email, the domain and resource names. Tagline approved by the owner (reworded 23 Nov 2026); homepage text is a draft the owner can change. Fixed "Bookshop" strings now use the store name. |
 | Deployment config | Generated | `npm run configure` wrote path routes for `evergreenchristian.online/books/*` and `/books` in zone `evergreenchristian.online`, PUBLIC_ORIGIN `https://evergreenchristian.online`, Worker `evergreen-books`, D1 `evergreen-books`, R2 `evergreen-book-files`. |
-| Domain and Cloudflare | Pending | Need to confirm the domain's DNS is active on Cloudflare and which hostname the existing site uses (apex or www). |
+| Domain and Cloudflare | Decision needed | Public DNS check on 23 Nov 2026: nameservers are Cloudflare (mack, mariah), so the zone is active on Cloudflare. The apex already serves a different bookshop app through Cloudflare (title "Bookshop | Evergreen Christian", pages /, /cart/, /contact/, /author/, no published books); /books/ returns 404. www is a CNAME to Namecheap's parking page. Email uses Namecheap forwarding (eforward1-5 MX) with SPF `include:spf.efwd.registrar-servers.com`; no DMARC record. These mail records must be kept. Owner must decide whether this store replaces the existing app or runs beside it at /books/. |
 | Independent D1 and private R2 | Not created | Created by `npm run deploy` in Workers Builds after Cloudflare is ready. |
 | Owner login and authenticator | Not initialized | Needs AUTHOR_INITIAL_PASSWORD as a private build secret before the first deploy. |
 | Catalog, covers and PDFs | Empty | Owner adds books in the portal. SEED_BOOKS stays empty. |
