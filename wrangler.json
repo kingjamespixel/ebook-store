@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "ebook-store",
+  "name": "evergreen-books",
   "main": "src/worker.js",
   "compatibility_date": "2026-10-10",
   "workers_dev": false,
@@ -12,21 +12,30 @@
     "html_handling": "none",
     "not_found_handling": "none"
   },
-  "routes": [],
+  "routes": [
+    {
+      "pattern": "evergreenchristian.online/books/*",
+      "zone_name": "evergreenchristian.online"
+    },
+    {
+      "pattern": "evergreenchristian.online/books",
+      "zone_name": "evergreenchristian.online"
+    }
+  ],
   "vars": {
-    "PUBLIC_ORIGIN": "https://store.example.invalid"
+    "PUBLIC_ORIGIN": "https://evergreenchristian.online"
   },
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "ebook-store",
+      "database_name": "evergreen-books",
       "migrations_dir": "migrations"
     }
   ],
   "r2_buckets": [
     {
       "binding": "FILES",
-      "bucket_name": "ebook-files"
+      "bucket_name": "evergreen-book-files"
     }
   ],
   "triggers": {

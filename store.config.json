@@ -1,14 +1,14 @@
 {
-  "store_name": "Bookshop",
-  "tagline": "Digital books for curious readers.",
-  "homepage_title": "Find your next good read.",
-  "homepage_intro": "Browse the collection, choose a book that interests you and start reading after secure payment.",
+  "store_name": "Evergreen Christian",
+  "tagline": "Christian books to help you grow in faith.",
+  "homepage_title": "Find your next book for your faith journey.",
+  "homepage_intro": "Browse our Christian books, choose the one that speaks to you and start reading right after secure payment.",
   "catalog_intro": "Explore books by title or topic.",
-  "support_email": "",
-  "domain": "",
-  "worker_name": "ebook-store",
-  "database_name": "ebook-store",
-  "bucket_name": "ebook-files",
+  "support_email": "evergreenorganization29@gmail.com",
+  "domain": "evergreenchristian.online",
+  "worker_name": "evergreen-books",
+  "database_name": "evergreen-books",
+  "bucket_name": "evergreen-book-files",
   "logo_url": "/books/assets/logo.svg",
-  "deployment_mode": "custom-domain"
+  "deployment_mode": "path-route"
 }

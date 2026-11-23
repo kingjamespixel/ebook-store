@@ -120,7 +120,8 @@ test('Exchange-rate prices stay fixed between midnight/noon updates even when th
  const stored=await db.prepare('SELECT items FROM orders WHERE ref=?').bind(locked.ref).first(),legacyItems=JSON.parse(stored.items).map(i=>({...i,amount:initial}));
  await db.prepare("UPDATE orders SET currency='USD',amount=?,items=? WHERE ref=?").bind(initial,JSON.stringify(legacyItems),locked.ref).run();locked.payment.currency='USD';locked.payment.amount=initial;fxMultiplier=2;
  for(let i=0;i<3;i++)assert.equal((await api('catalog')).data.books[0].prices.USD,initial);
- const t=Math.floor(Date.now()/1000),previousWindow=(Math.floor(t/43200)-1)*43200;
+ // Price windows start at midnight and noon Lagos time (UTC+1).
+ const t=Math.floor(Date.now()/1000),previousWindow=(Math.floor((t+3600)/43200)-1)*43200-3600;
  await db.prepare("UPDATE cache SET updated_at=? WHERE key='fx'").bind(previousWindow).run();await db.prepare("DELETE FROM cache WHERE key='fx_refresh_lock'").run();
  assert.equal((await api('catalog')).data.books[0].prices.USD,initial*2);paid(locked);const confirmed=await verify(locked);assert.equal(confirmed.data.status,'paid');assert.equal(confirmed.data.amount,initial);fxMultiplier=3;
  assert.equal((await api('catalog')).data.books[0].prices.USD,initial*2);
@@ -164,7 +165,7 @@ test('Webhook rejects a false secret; sales filter/export are private and protec
  assert.equal((await api('webhook',{method:'POST',data:{data:{tx_ref:purchased.ref,id:123}},headers:{'verif-hash':'test-webhook-secret-value'}})).response.status,200);
  assert.equal((await api('admin/sales')).response.status,401);
  const hostile=await makeOrder([books[1].id],'=SUM(1,2)');paid(hostile);assert.equal((await verify(hostile)).data.status,'paid');const sales=(await api('admin/sales?status=paid&search=buyer%40example.com',{auth:true})).data;assert.ok(sales.orders.length>=3);assert.equal(sales.orders[0].key_enc,undefined);assert.equal(sales.orders[0].items,undefined);
- const exported=await call('/books/api/admin/export?search=SUM',{auth:true});assert.equal(exported.status,200);const csv=await exported.text();assert.match(csv,/"'=SUM\(1,2\)"/);assert.match(csv,/UTC/);
+ const exported=await call('/books/api/admin/export?search=SUM',{auth:true});assert.equal(exported.status,200);const csv=await exported.text();assert.match(csv,/"'=SUM\(1,2\)"/);assert.match(csv,/Lagos/);
 });
 
 test('Conversions API token stays encrypted and private, test events need a saved code, and text styles validate',async()=>{

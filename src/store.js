@@ -1,9 +1,10 @@
 import {BRAND} from './brand.js';
 import {SEED_BOOKS} from './seed.js';
 import {assert,digest,hashPortalPassword,sanitizeHtml} from './security.js';
-import {SHOP_CURRENCIES,ALL_CURRENCIES,currencyFor,configuredCurrencies,activeCurrencies,currencyDecimals} from './markets.js';
+import {SHOP_CURRENCIES,ALL_CURRENCIES,currencyFor,configuredCurrencies,activeCurrencies,currencyDecimals,ngnGateway} from './markets.js';
 export {currencyFor} from './markets.js';
 export const now=()=>Math.floor(Date.now()/1000);
+export const LAGOS_OFFSET=3600;
 const initialized=new WeakMap();
 export async function initialize(env) {
   if(initialized.has(env.DB))return initialized.get(env.DB);
@@ -44,8 +45,8 @@ export async function upstream(env,url,options={}) {
 export async function rates(env) {
   const cached=await env.DB.prepare("SELECT value,updated_at FROM cache WHERE key='fx'").first();
   let data;try{data=JSON.parse(cached?.value||'null');}catch{}
-  // Two shared price windows: midnight and noon UTC.
-  const windowFor=t=>Math.floor(t/43200),fallback=()=>data?.published_at>now()-172800?data.rates:{NGN:1};
+  // Two shared price windows: midnight and noon Lagos time (UTC+1, no daylight saving).
+  const windowFor=t=>Math.floor((t+LAGOS_OFFSET)/43200),fallback=()=>data?.published_at>now()-172800?data.rates:{NGN:1};
   const sameWindow=cached&&windowFor(cached.updated_at)===windowFor(now())&&data?.published_at>now()-172800;
   if(sameWindow&&ALL_CURRENCIES.every(c=>Number(data.rates?.[c])>0))return data.rates;
   // D1 coordinates different edge locations, and limits retry attempts during an outage.
@@ -91,5 +92,5 @@ export async function catalog(env,req) {
   const books=rows.map(row=>{const b=rowBook(row),r=grouped.get(b.id);return {...b,...counts.get(b.id),description_html:descriptionFrom(b),prices:bookPrices(row.price_ngn,fx,s),reviews:r?{count:r.count,average:r.sum/r.count,items:r.items}:{count:0,average:0,items:[]}};});
   const readyCurrencies=activeCurrencies(s),checkoutEnabled=readyCurrencies.length>0&&Boolean(s.mode==='test'||s.resend_key&&s.from_email)&&Boolean(env.CONFIG_KEY);
   const country=/^[A-Z]{2}$/.test(req.cf?.country||'')?req.cf.country:'OT';
-  return {books,featured_book_id:books.some(b=>b.id===s.featured_book_id)?s.featured_book_id:books[0]?.id||'',currencies:readyCurrencies.length?readyCurrencies:configuredCurrencies(s),mode:s.mode,checkout_enabled:checkoutEnabled,cart_enabled:true,reviews_enabled:true,contact_enabled:Boolean(s.resend_key&&s.from_email),store_name:BRAND.store_name,tagline:BRAND.tagline,logo_url:BRAND.logo_url,pixel_id:s.pixel_id,conversions_api_enabled:s.meta_enabled==='1'&&Boolean(s.meta_access_token),typography:s.typography||'classic',support_email:s.support_email,country,currency:automaticCurrency(country,s)};
+  return {books,featured_book_id:books.some(b=>b.id===s.featured_book_id)?s.featured_book_id:books[0]?.id||'',currencies:readyCurrencies.length?readyCurrencies:configuredCurrencies(s),mode:s.mode,checkout_enabled:checkoutEnabled,cart_enabled:true,reviews_enabled:true,contact_enabled:Boolean(s.resend_key&&s.from_email),ngn_gateway:ngnGateway(s),store_name:BRAND.store_name,tagline:BRAND.tagline,logo_url:BRAND.logo_url,pixel_id:s.pixel_id,conversions_api_enabled:s.meta_enabled==='1'&&Boolean(s.meta_access_token),typography:s.typography||'classic',support_email:s.support_email,country,currency:automaticCurrency(country,s)};
 }

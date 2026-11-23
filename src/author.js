@@ -3,7 +3,7 @@ import {assert,json,bodyJson,sameOrigin,randomToken,digest,checkPortalPassword,h
 import {now,settings,saveSettings,clientIp,rateLimit,rowBook,descriptionFrom,originFor,startingSales} from './store.js';
 import {mail,receiptEmail,reconcile,confirmationMessage} from './payments.js';
 import {testMeta} from './meta.js';
-import {ALL_CURRENCIES,SHOP_CURRENCIES,activeCurrencies,configuredCurrencies} from './markets.js';
+import {ALL_CURRENCIES,SHOP_CURRENCIES,activeCurrencies,configuredCurrencies,ngnGateway,NGN_GATEWAYS} from './markets.js';
 import {bachs} from './bachs.js';
 import {authorSession as session,reauthenticate,secondFactor,issueSession,prepareTotp,activateTotp,replaceRecoveryCodes} from './portal-security.js';
 const cookie=(req,token='',expires=3600)=>'__Secure-bs_author='+token+'; Path=/books; HttpOnly; SameSite=Strict; Max-Age='+expires+'; Secure';
@@ -32,7 +32,7 @@ export async function authorApi(env,req,path) {
   if(path==='admin/logout'&&req.method==='POST'){
     await env.DB.prepare('DELETE FROM sessions WHERE token_hash=?').bind(auth.token_hash).run();return json({ok:true},200,{'Set-Cookie':cookie(req,'',0)});
   }
-  if(path==='admin/settings'&&req.method==='GET')return json({store_name:BRAND.store_name,mode:s.mode,support_email:s.support_email,from_email:s.from_email,from_name:s.from_name,pixel_id:s.pixel_id,meta_enabled:s.meta_enabled==='1',meta_test_code:s.meta_test_code||'',has_meta_token:Boolean(s.meta_access_token),typography:s.typography||'classic',featured_book_id:s.featured_book_id||'',currencies:configuredCurrencies(s),active_currencies:activeCurrencies(s),reminder_enabled:s.reminder_enabled==='1',public_origin:originFor(env,s,req),mfa_enabled:Boolean(s.author_totp),default_password:s.default_password==='1',has_test_key:Boolean(s.flutterwave_test),has_live_key:Boolean(s.flutterwave_live),has_webhook_secret:Boolean(s.webhook_secret),has_resend_key:Boolean(s.resend_key),has_bachs_test:Boolean(s.bachs_test),has_bachs_live:Boolean(s.bachs_live),has_bachs_webhook_test:Boolean(s.bachs_webhook_test),has_bachs_webhook_live:Boolean(s.bachs_webhook_live),bachs_webhook_test_url:originFor(env,s,req)+'/books/api/bachs/webhook/test',bachs_webhook_live_url:originFor(env,s,req)+'/books/api/bachs/webhook/live',username:s.author_username,webhook_url:originFor(env,s,req)+'/books/api/webhook'});
+  if(path==='admin/settings'&&req.method==='GET')return json({store_name:BRAND.store_name,mode:s.mode,support_email:s.support_email,from_email:s.from_email,from_name:s.from_name,pixel_id:s.pixel_id,meta_enabled:s.meta_enabled==='1',meta_test_code:s.meta_test_code||'',has_meta_token:Boolean(s.meta_access_token),typography:s.typography||'classic',featured_book_id:s.featured_book_id||'',currencies:configuredCurrencies(s),active_currencies:activeCurrencies(s),ngn_gateway:ngnGateway(s),reminder_enabled:s.reminder_enabled==='1',public_origin:originFor(env,s,req),mfa_enabled:Boolean(s.author_totp),default_password:s.default_password==='1',has_test_key:Boolean(s.flutterwave_test),has_live_key:Boolean(s.flutterwave_live),has_webhook_secret:Boolean(s.webhook_secret),has_resend_key:Boolean(s.resend_key),has_bachs_test:Boolean(s.bachs_test),has_bachs_live:Boolean(s.bachs_live),has_bachs_webhook_test:Boolean(s.bachs_webhook_test),has_bachs_webhook_live:Boolean(s.bachs_webhook_live),bachs_webhook_test_url:originFor(env,s,req)+'/books/api/bachs/webhook/test',bachs_webhook_live_url:originFor(env,s,req)+'/books/api/bachs/webhook/live',username:s.author_username,webhook_url:originFor(env,s,req)+'/books/api/webhook'});
   if(path==='admin/settings'&&req.method==='POST'){
     const data=await bodyJson(req,12000),updates={};
     for(const key of ['support_email','from_email'])if(key in data){assert(!data[key]||/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(data[key]),400,'Please enter a valid email address.');updates[key]=String(data[key]).slice(0,200);}
@@ -45,6 +45,7 @@ export async function authorApi(env,req,path) {
     if(data.meta_access_token){assert(typeof data.meta_access_token==='string'&&data.meta_access_token.length>=20&&data.meta_access_token.length<=4096&&!/\s/.test(data.meta_access_token),400,'Please check the Conversions API token.');updates.meta_access_token=await encrypt(env,data.meta_access_token);}
     if('public_origin' in data){let u;try{u=new URL(data.public_origin);}catch{}assert(u&&u.protocol==='https:'&&!u.username&&!u.password&&!u.search&&!u.hash&&['','/'].includes(u.pathname),400,'Use your website address, starting with https://.');assert(u.origin===new URL(env.PUBLIC_ORIGIN||req.url).origin,400,'The website address must match the domain configured for this Worker.');updates.public_origin=u.origin;}
     if('currencies' in data){assert(Array.isArray(data.currencies)&&data.currencies.length&&data.currencies.every(c=>ALL_CURRENCIES.includes(c)),400,'Choose at least one supported currency.');updates.currencies=JSON.stringify([...new Set(data.currencies)]);}
+    if('ngn_gateway' in data){assert(NGN_GATEWAYS.includes(data.ngn_gateway),400,'Choose Flutterwave or Bachs for naira payments.');updates.ngn_gateway=data.ngn_gateway;}
     if('reminder_enabled' in data)updates.reminder_enabled=data.reminder_enabled?'1':'0';
     for(const key of ['flutterwave_test','flutterwave_live','webhook_secret','resend_key','bachs_test','bachs_live','bachs_webhook_test','bachs_webhook_live']){
       if(data[key]){
@@ -61,7 +62,7 @@ export async function authorApi(env,req,path) {
     if(mode==='live')assert(combined.resend_key&&combined.from_email,400,'Add your email key and verified sender before enabling live checkout.');
     if(mode==='live')assert(combined.default_password!=='1',400,'Change your initial portal password before enabling live checkout.');
     updates.mode=mode;
-    const sensitive=new Set(['mode','public_origin','support_email','from_email','from_name','pixel_id','meta_enabled','meta_test_code','meta_access_token','flutterwave_test','flutterwave_live','webhook_secret','resend_key','bachs_test','bachs_live','bachs_webhook_test','bachs_webhook_live']);
+    const sensitive=new Set(['mode','ngn_gateway','public_origin','support_email','from_email','from_name','pixel_id','meta_enabled','meta_test_code','meta_access_token','flutterwave_test','flutterwave_live','webhook_secret','resend_key','bachs_test','bachs_live','bachs_webhook_test','bachs_webhook_live']);
     if(Object.entries(updates).some(([key,value])=>sensitive.has(key)&&String(value)!==String(s[key]??'')))await reauthenticate(env,s,auth,data);
     await saveSettings(env,updates);return json({ok:true});
   }
@@ -172,14 +173,14 @@ export async function authorApi(env,req,path) {
 async function sales(env,req,exporting=false) {
   const q=new URL(req.url).searchParams,where=[],args=[];
   const status=q.get('status');if(['paid','pending','failed','underpaid','review','expired','cancelled','setup_failed'].includes(status)){where.push('status=?');args.push(status);}
-  for(const key of ['from','to'])if(/^\d{4}-\d{2}-\d{2}$/.test(q.get(key)||'')){const t=Date.parse(q.get(key)+'T00:00:00Z')/1000;if(Number.isFinite(t)){where.push('created_at'+(key==='from'?'>=?':'<?'));args.push(t+(key==='to'?86400:0));}}
+  for(const key of ['from','to'])if(/^\d{4}-\d{2}-\d{2}$/.test(q.get(key)||'')){const t=Date.parse(q.get(key)+'T00:00:00+01:00')/1000;if(Number.isFinite(t)){where.push('created_at'+(key==='from'?'>=?':'<?'));args.push(t+(key==='to'?86400:0));}}
   const search=String(q.get('search')||'').trim().slice(0,200);if(search){where.push('(name LIKE ? OR email LIKE ? OR ref LIKE ?)');args.push('%'+search+'%','%'+search+'%','%'+search+'%');}
   const clause=where.length?' WHERE '+where.join(' AND '):'',page=Math.max(1,Math.min(100000,Number(q.get('page'))||1));
   const {results}=await env.DB.prepare('SELECT * FROM orders'+clause+' ORDER BY created_at DESC LIMIT ? OFFSET ?').bind(...args,exporting?10000:50,exporting?0:(page-1)*50).all();
   const rows=results.map(row=>({ref:row.ref,name:row.name,email:row.email,phone:row.phone,country:row.country,amount:row.amount,currency:row.currency,status:row.status,payment_code:row.payment_code,payment_message:row.payment_code?confirmationMessage(row.payment_code,row.provider):'',last_check_at:row.last_check_at,mode:row.mode,provider:row.provider||'flutterwave',created_at:row.created_at,paid_at:row.paid_at,email_sent_at:row.email_sent_at,reminder_sent_at:row.reminder_sent_at,mail_error:row.mail_error,books:JSON.parse(row.items).map(i=>i.title)}));
   if(!exporting){const totals=await env.DB.prepare('SELECT count(*) AS count FROM orders'+clause).bind(...args).first();const {results:summary}=await env.DB.prepare("SELECT currency,SUM(amount) AS amount,COUNT(*) AS orders FROM orders WHERE status='paid' AND mode='live' GROUP BY currency").all();return json({orders:rows,page,total:totals.count,summary});}
-  const lines=[['Reference','Buyer name','Email','Phone','Country','Books','Amount','Currency','Status','Mode','Payment provider','Date and time (UTC)','Paid date and time (UTC)','Payment detail','Last checked (UTC)']];
-  const date=value=>value?new Date(value*1000).toLocaleString('en-GB',{timeZone:'UTC',hour12:false}):'';
+  const lines=[['Reference','Buyer name','Email','Phone','Country','Books','Amount','Currency','Status','Mode','Payment provider','Date and time (Lagos)','Paid date and time (Lagos)','Payment detail','Last checked (Lagos)']];
+  const date=value=>value?new Date(value*1000).toLocaleString('en-GB',{timeZone:'Africa/Lagos',hour12:false}):'';
   for(const row of rows)lines.push([row.ref,row.name,row.email,row.phone,row.country,row.books.join('; '),row.amount,row.currency,row.status,row.mode,row.provider,date(row.created_at),date(row.paid_at),row.payment_message,date(row.last_check_at)]);
-  return new Response('\ufeff'+lines.map(line=>line.map(csvCell).join(',')).join('\r\n'),{headers:{'Content-Type':'text/csv; charset=utf-8','Content-Disposition':'attachment; filename="Bookshop-sales.csv"','Cache-Control':'private, no-store'}});
+  return new Response('\ufeff'+lines.map(line=>line.map(csvCell).join(',')).join('\r\n'),{headers:{'Content-Type':'text/csv; charset=utf-8','Content-Disposition':'attachment; filename="'+(BRAND.store_name.replace(/[^A-Za-z0-9]+/g,'-').replace(/^-|-$/g,'')||'store')+'-sales.csv"','Cache-Control':'private, no-store'}});
 }

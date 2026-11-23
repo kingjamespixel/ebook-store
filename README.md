@@ -36,12 +36,12 @@ For a local run, copy .dev.vars.example to .dev.vars, generate a fresh random CO
 | Provider | Current implementation |
 | --- | --- |
 | Flutterwave | v3 Standard collection in NGN with server verification |
-| Bachs | GHS, KES, MWK, RWF, TZS, UGX, XAF, XOF and ZMW mobile money with authenticated checkout verification and matching signed success proof |
+| Bachs | GHS, KES, MWK, RWF, TZS, UGX, XAF, XOF and ZMW mobile money, and NGN card and bank transfer when the portal's NGN gateway is set to Bachs, with authenticated checkout verification and matching signed success proof |
 | Other gateways | Require an adapter and meaningful tests before live use |
 
 Provider account approval controls available methods and currencies. A key cannot activate a disabled method. Optional Bachs USD card code exists, but USD is absent from the default currency list. Enable it only with account approval and a complete test.
 
-Prices currently use NGN as the base through price_ngn. Reports and the twice-daily rate windows use UTC. Tell Claude if you need another base currency or timezone. Changing labels alone does not change calculations.
+Prices use NGN as the base through price_ngn. Reports, sales date filters and the twice-daily rate windows use Lagos time (WAT, UTC+1). Tell Claude if you need another base currency or timezone. Changing labels alone does not change calculations.
 
 Live checkout requires email setup, a changed initial password and a ready provider. Test checkout, verification and file access require owner authentication. Test purchases do not add live sales. A browser redirect cannot mark an order paid.
 

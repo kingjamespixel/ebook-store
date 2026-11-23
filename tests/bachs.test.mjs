@@ -108,6 +108,21 @@ test('Every requested currency reaches the correct gateway with a frozen local a
     assert.equal(new URL(request.body.success_url).origin,origin);assert.equal(new URL(request.body.cancel_url).origin,origin);
   }
 });
+test('Naira can use Bachs card and bank transfer and still needs signed, verified payment before delivery',async()=>{
+  const bad=await api('admin/settings',{method:'POST',auth:true,data:{ngn_gateway:'paystack'}});assert.equal(bad.response.status,400);
+  await configure({ngn_gateway:'bachs'});assert.equal((await api('admin/settings',{auth:true})).data.ngn_gateway,'bachs');assert.equal((await api('catalog',{country:'NG'})).data.ngn_gateway,'bachs');
+  const flutterwaveStarts=starts.filter(x=>x.provider==='flutterwave').length;
+  const o=await order('NGN','NG');assert.equal(o.response.status,200,JSON.stringify(o.data));const request=starts.at(-1);
+  assert.equal(o.row.provider,'bachs');assert.equal(request.provider,'bachs');assert.equal(starts.filter(x=>x.provider==='flutterwave').length,flutterwaveStarts);
+  assert.deepEqual(request.body.payment_method_types,['NGN_CARD','NGN_BANK_TRANSFER']);assert.equal(request.body.pricing.currency,'NGN');assert.equal(request.body.billing_currency,'NGN');assert.equal(Number(request.body.pricing.amount),o.amount);assert.equal(o.row.amount,o.amount);
+  // Bachs reports card charges as CARD. Fulfilment relies on money and identity checks, not that label.
+  complete(o,{payment_method:'CARD'});assert.equal((await verify(o)).data.status,'pending');
+  assert.equal((await deliver(o)).response.status,200);
+  const paid=await verify(o);assert.equal(paid.data.status,'paid',JSON.stringify(paid.data));
+  const under=await order('NGN','NG');complete(under,{charge:{payment_id:'pay_under',status:'succeeded',amount:(under.amount/2).toFixed(2),currency:'NGN'}});await deliver(under);
+  assert.notEqual((await verify(under)).data.status,'paid');
+  await configure({ngn_gateway:'flutterwave'});const back=await order('NGN','NG');assert.equal(back.row.provider,'flutterwave');
+});
 test('A browser return or a completed API session cannot deliver books without a signed webhook',async()=>{
   const o=await order('KES','KE');complete(o);const previousReads=reads;
   const result=await verify(o,{checkout_id:'chk_another',status:'successful'});assert.equal(result.data.status,'pending');assert.equal(result.data.books,undefined);assert.equal(reads,previousReads+1);
