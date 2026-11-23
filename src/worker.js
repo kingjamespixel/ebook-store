@@ -79,6 +79,14 @@ async function handle(env,req,ctx) {
   const transformed=new HTMLRewriter().on('[data-store-name]',{element(el){el.setInnerContent(escapeHtml(BRAND.store_name));}}).on('title',{element(el){el.setInnerContent(title);}}).on('meta[name="description"]',{element(el){el.setAttribute('content',description);}}).on('#bs-page-data',{element(el){el.setInnerContent(JSON.stringify(config).replace(/</g,'\\u003c'),{html:true});}}).on('head',{element(el){if(config.page!=='download')el.append('<link rel="canonical" href="'+escapeHtml(url.origin+path)+'"><meta property="og:title" content="'+escapeHtml(title)+'"><meta property="og:description" content="'+escapeHtml(description)+'"><meta property="og:image" content="'+escapeHtml(url.origin+image)+'">',{html:true});else el.append('<meta name="robots" content="noindex,nofollow">',{html:true});}}).transform(response);
   const final=new Response(transformed.body,transformed);final.headers.set('Cache-Control','no-store');return final;
 }
+// Read and drop any unread request body (up to 1 MB) before answering. Answering
+// while the client is still sending, or leaving bytes unread, can reset the connection.
+async function discardBody(req){
+  if(!req.body||req.bodyUsed)return;
+  const reader=req.body.getReader();let total=0;
+  try{while(total<1048576){const {done,value}=await reader.read();if(done)return;total+=value.byteLength;}}catch{}
+  finally{try{await reader.cancel();}catch{}}
+}
 export default {
   async fetch(req,env,ctx) {
     let response;
@@ -89,6 +97,7 @@ export default {
         else throw new HttpError(400,'Use the secure HTTPS website to submit this form.');
       }else response=await handle(env,req,ctx);
     }catch(error){response=json({message:error.status?error.message:'The store could not complete that request. Please try again.',...(error.data?{data:error.data}:{})},error.status||500);if(!error.status)console.error('Bookshop request failed:',error.name);}
+    await discardBody(req);
     const out=new Response(response.body,response);for(const [key,value] of Object.entries(headers))out.headers.set(key,value);
     if(url.protocol==='https:'&&!local)out.headers.set('Strict-Transport-Security','max-age=31536000');
     const privatePath=/^\/books\/(?:author(?:\/|$)|api\/admin(?:\/|$)|download(?:\/|$))/.test(url.pathname);
