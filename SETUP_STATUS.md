@@ -8,9 +8,10 @@ Last updated: 23 November 2026.
 
 | Area | State | Evidence or next step |
 | --- | --- | --- |
-| Own GitHub repository | Done | https://github.com/kingjamespixel/ebook-store, branch `main`. New history from the clean starter files (first commit 5e59d32). Push access confirmed through git on the owner's PC. |
+| Own GitHub repository | Done | https://github.com/kingjamespixel/ebook-store (public), branch `main`. New history from the clean starter files (first commit 5e59d32). Push access confirmed through git on the owner's PC. |
 | Implementation tools | Checked | Claude Code desktop app: can edit files, run Node 26 and npm 11, push with git and use a built-in browser. GitHub CLI and a Wrangler login are not set up yet. |
-| Local checks | Partly verified | 23 Nov 2026 on Windows: `npm ci` OK, `npm run check` passed, `npm run build` (dry run) passed with DB, FILES and ASSETS bindings, `npm test` 80 of 107 passed. The 27 failures are Windows-only: the local Workers runtime resets the connection when the app rejects a POST before reading its body, and later tests that share that state then fail; the deploy-script tests need symlinks and spawn `npm` in a way Windows does not support. Test file paths were fixed to work in folders with spaces. A full test run on Linux is still needed. |
+| Local checks | Partly verified | 23 Nov 2026 on Windows: `npm ci` OK, `npm run check` passed, `npm run build` (dry run) passed with DB, FILES and ASSETS bindings, `npm test` 80 of 107 passed. The 27 failures are Windows-only: the local Workers runtime resets the connection when the app rejects a POST before reading its body, and later tests that share that state then fail; the deploy-script tests need symlinks and spawn `npm` in a way Windows does not support. Test file paths were fixed to work in folders with spaces. |
+| Linux tests (GitHub Actions) | Passed | Workflow `.github/workflows/test.yml` runs `npm ci`, `npm run check`, `npm test` and `npm run build` on Ubuntu with Node 22 for every push to `main` and every pull request. Run #1 on commit 0324fe5 (23 Nov 2026) succeeded: https://github.com/kingjamespixel/ebook-store/actions/runs/45216216243 |
 | Business identity and copy | Pending | Waiting for intake answers (store name, contact details, copy). |
 | Domain and Cloudflare | Pending | Waiting for domain, registrar and Cloudflare account details. |
 | Independent D1 and private R2 | Not created | Created by `npm run deploy` after the domain and Cloudflare account are ready. |
