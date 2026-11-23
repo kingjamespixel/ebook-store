@@ -1,0 +1,5 @@
+# Local secrets only. Generate fresh values before running locally. Never commit .dev.vars.
+CONFIG_KEY=
+AUTHOR_INITIAL_PASSWORD=
+AUTHOR_INITIAL_USERNAME=owner
+PUBLIC_ORIGIN=http://localhost:8787
