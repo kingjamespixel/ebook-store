@@ -156,8 +156,12 @@ export async function authorApi(env,req,path) {
   if(path==='admin/bachs/check'&&req.method==='POST'){
     await rateLimit(env,'bachs-key-check/'+auth.token_hash,10,300);
     const data=await bodyJson(req,1000),mode=data.mode||s.mode;assert(['test','live'].includes(mode),400,'Choose test or live mode.');
+    const label=mode==='test'?'sandbox':'live',prefix=mode==='test'?'sk_sandbox_':'sk_live_';
+    assert(s['bachs_'+mode],400,'No Bachs '+label+' API key is saved yet. Paste your '+label+' key (it starts with '+prefix+') into the '+(mode==='test'?'Sandbox':'Live')+' API key field, enter your current password and click Save setup. Then check again.');
     const {response}=await bachs(env,s,'checkout-sessions?limit=1','GET',undefined,mode);
-    assert(response.ok,502,'Bachs did not accept this API request. Check the saved key, its environment and payments read permission.');
+    assert(response.status!==401,502,'Bachs did not recognise the saved '+label+' key. Make sure it is a '+label+' key ('+prefix+'...) from the matching Bachs environment, save it again and check again.');
+    assert(response.status!==403,502,'Bachs accepted the '+label+' key but it lacks permission. In the Bachs Developer Portal, give the key the payments:write scope, save the new key here and check again.');
+    assert(response.ok,502,'Bachs did not accept this API request (status '+response.status+'). Check the saved key, its environment and its payments permission.');
     return json({ok:true,message:'Bachs accepted the '+mode+' API key. Complete a payment test to confirm webhook delivery and downloads.'});
   }
   if(path==='admin/test-meta'&&req.method==='POST')return json(await testMeta(env,req));

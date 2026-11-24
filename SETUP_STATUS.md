@@ -55,6 +55,8 @@ Last updated: 23 November 2026.
 
 ## Code changes made for this store
 
+- Bachs key check (24 Nov 2026): the owner saw "Payment in this currency is temporarily unavailable" after clicking a Check key button. That message meant no Bachs key was saved for the mode being checked. The check now says so directly, and separately explains a key Bachs does not recognise (401: wrong environment) and a key without permission (403: needs the payments:write scope). Test: "The Bachs key check explains a missing key, a wrong key and a key without permission".
+
 - Flutterwave removed from this store at the owner's request (24 Nov 2026). `store.config.json` now has `"payment_gateways": ["bachs"]`. Effects: the portal shows no Flutterwave keys and no NGN gateway choice; Flutterwave keys and `ngn_gateway: flutterwave` are refused; naira always uses Bachs `NGN_CARD` and `NGN_BANK_TRANSFER`; `/books/api/webhook` returns 404; the page security policy no longer allows Flutterwave checkout. The Flutterwave adapter stays in the code base for other installations and is still tested through `tests/fixtures/gateways.mjs`; `tests/gateways.test.mjs` checks this store's real configuration.
 
 - Owner portal moved to `/author/` at the owner's request (23 Nov 2026). `/author`, `/books/author` and `/books/author/` redirect there with 301, and the portal keeps the private-page headers (no framing, no outside scripts, no-store, noindex). The portal still uses the same private API under `/books/api/admin/`. Path-route mode now also routes `/author` and `/author/*`. Test: "The owner portal is served at /author/ and older portal addresses redirect there".

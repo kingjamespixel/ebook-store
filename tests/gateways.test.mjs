@@ -17,6 +17,10 @@ const outbound=[];let mf,cookie,csrf,sequence=0;
 async function external(req){
   const u=new URL(req.url);outbound.push(u.hostname+u.pathname);
   if(u.hostname==='open.er-api.com')return Response.json({result:'success',base_code:'NGN',time_last_update_unix:Math.floor(Date.now()/1000),rates});
+  if(u.hostname==='sandbox-api.bachs.io'&&u.pathname==='/v1/checkout-sessions'&&req.method==='GET'){
+    const auth=req.headers.get('Authorization');if(auth==='Bearer sk_sandbox_only_a_test_value')return Response.json({data:[]});
+    return Response.json({detail:'Invalid API key'},{status:auth==='Bearer sk_sandbox_no_scope_value'?403:401});
+  }
   if(u.hostname==='sandbox-api.bachs.io'&&u.pathname==='/v1/checkout-sessions'&&req.method==='POST'){
     const body=await req.json(),id='chk_only_'+(++sequence);outbound.push(JSON.stringify(body.payment_method_types));
     return Response.json({checkout_id:id,checkout_url:'https://sandbox-checkout.bachs.io/c/token_'+sequence,status:'open',reference:body.reference},{status:201});
@@ -51,6 +55,15 @@ test('A Bachs-only store refuses Flutterwave settings and routes naira through B
   const checkout=await call('/books/api/checkout',{method:'POST',headers:{'X-BS-Nonce':catalog.nonce,Cookie:cookie},data:{name:'Test Reader',email:'reader@example.com',currency:'NGN',books:[item.id],expected_amount:item.prices.NGN,consent:true}});
   const order=await checkout.json();assert.equal(checkout.status,200,JSON.stringify(order));assert.equal(order.provider,'bachs');assert.equal(new URL(order.checkout_url).hostname,'sandbox-checkout.bachs.io');
   assert.ok(outbound.includes('["NGN_CARD","NGN_BANK_TRANSFER"]'));assert.equal(outbound.some(h=>h.includes('flutterwave')),false);
+});
+
+test('The Bachs key check explains a missing key, a wrong key and a key without permission',{skip:!bachsOnly},async()=>{
+  const check=async mode=>{const r=await admin('bachs/check',{method:'POST',data:{mode}});return {status:r.status,message:(await r.json()).message};};
+  let r=await check('live');assert.equal(r.status,400);assert.match(r.message,/No Bachs live API key is saved yet/);assert.match(r.message,/sk_live_/);
+  for(const [key,pattern] of [['sk_sandbox_wrong_key_value',/did not recognise the saved sandbox key/],['sk_sandbox_no_scope_value',/lacks permission/],['sk_sandbox_only_a_test_value',/Bachs accepted the test API key/]]){
+    const saved=await admin('settings',{method:'POST',data:{current_password:password,bachs_test:key}});assert.equal(saved.status,200,await saved.text());
+    r=await check('test');assert.match(r.message,pattern,key);
+  }
 });
 
 test('A Bachs-only store has no Flutterwave webhook and no Flutterwave form target',{skip:!bachsOnly},async()=>{
