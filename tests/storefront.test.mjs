@@ -260,3 +260,15 @@ test('Payment retry from a private purchase page never loads the Bachs script in
  form.dispatchEvent(new p.window.Event('submit',{bubbles:true,cancelable:true}));await tick();
  assert.equal(opened,0);assert.equal(p.document.head.querySelector('script[src="https://checkout.bachs.io/bachs.js"]'),null);assert.equal(p.navigation[0],result.checkout_url);
 });
+test('A second product image adds thumbnails that switch the main image, and sales page images show after the description',async()=>{
+ const book={...extra,id:'book-with-images',slug:'book-with-images',title:'Book with images',image_url:'/books/api/cover/main.webp',image_small_url:'/books/api/cover/main-small.webp',image2_url:'/books/api/cover/back.webp',image2_small_url:'/books/api/cover/back-small.webp',gallery_title:'Readers <b>love</b> it',gallery:[{url:'/books/api/cover/t1.webp',small_url:'/books/api/cover/t1-small.webp'},{url:'/books/api/cover/t2.webp',small_url:''},{url:42},null]};
+ const p=await page({page:'book',book:book.id,catalogBooks:[...all,book]});
+ const thumbs=[...p.document.querySelectorAll('[data-photo]')];assert.equal(thumbs.length,2);assert.equal(thumbs[0].getAttribute('aria-pressed'),'true');
+ assert.match(p.document.querySelector('[data-photo-main] img').getAttribute('src'),/main\.webp/);
+ click(p,'[data-photo="1"]');assert.match(p.document.querySelector('[data-photo-main] img').getAttribute('src'),/back\.webp/);assert.equal(p.document.querySelector('[data-photo="1"]').getAttribute('aria-pressed'),'true');assert.match(p.document.querySelector('[data-photo-main] img').getAttribute('alt'),/second image/);
+ const gallery=p.document.querySelector('.bs-sales-gallery');assert.ok(gallery);
+ assert.equal(gallery.querySelector('h2').textContent,'Readers <b>love</b> it');assert.equal(gallery.querySelector('h2 b'),null);
+ const links=[...gallery.querySelectorAll('a')];assert.equal(links.length,2);assert.equal(links[0].getAttribute('href'),'/books/api/cover/t1.webp');assert.equal(links[0].querySelector('img').getAttribute('src'),'/books/api/cover/t1-small.webp');assert.equal(links[1].querySelector('img').getAttribute('src'),'/books/api/cover/t2.webp');assert.equal(links[0].getAttribute('rel'),'noopener');
+ const copy=p.document.querySelector('.bs-book-copy');assert.ok(copy.compareDocumentPosition(gallery)&4,'the gallery follows the description');
+ const plain=await page({page:'book',book:extra.id});assert.equal(plain.document.querySelectorAll('[data-photo]').length,0);assert.equal(plain.document.querySelector('.bs-sales-gallery'),null);assert.ok(plain.document.querySelector('.bs-book-photo img'));
+});

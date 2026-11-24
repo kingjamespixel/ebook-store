@@ -66,6 +66,22 @@ test('The Bachs key check explains a missing key, a wrong key and a key without 
   }
 });
 
+test('Books keep a second product image and up to 12 uploaded sales page images, and refuse outside links',{skip:!bachsOnly},async()=>{
+  const webp=await readFile(root+'tests/fixtures/cover.webp');
+  const upload=async()=>{const r=await admin('upload?kind=cover',{method:'POST',raw:webp,headers:{'Content-Type':'image/webp'}});const data=await r.json();assert.equal(r.status,200,JSON.stringify(data));return data.url;};
+  const [main,second,secondSmall,t1,t1Small,t2]=[await upload(),await upload(),await upload(),await upload(),await upload(),await upload()];
+  const base={title:'Book with images',slug:'book-with-images',price_ngn:3000,active:true,image_url:main};
+  let saved=await admin('books',{method:'POST',data:{...base,image2_url:second,image2_small_url:secondSmall,gallery_title:'What readers are saying',gallery:[{url:t1,small_url:t1Small},{url:t2}]}});const {id}=await saved.json();assert.equal(saved.status,200);
+  const find=async()=>(await (await admin('books')).json()).books.find(b=>b.id===id);
+  let book=await find();assert.equal(book.image2_url,second);assert.equal(book.image2_small_url,secondSmall);assert.deepEqual(book.gallery,[{url:t1,small_url:t1Small},{url:t2,small_url:''}]);assert.equal(book.gallery_title,'What readers are saying');
+  const publicBook=(await (await call('/books/api/catalog')).json()).books.find(b=>b.id===id);assert.equal(publicBook.image2_url,second);assert.equal(publicBook.gallery.length,2);
+  for(const bad of [{image2_url:'https://evil.example/x.webp'},{image2_url:'/books/assets/logo.svg'},{image2_url:second,image2_small_url:'javascript:alert(1)'},{gallery:[{url:'https://evil.example/t.webp'}]},{gallery:[{url:t1,small_url:'/books/api/cover/../x.webp'}]},{gallery:Array.from({length:13},()=>({url:t1}))},{gallery:'not a list'},{gallery:[null]}]){
+    const r=await admin('books',{method:'POST',data:{...base,id,...bad}});assert.equal(r.status,400,JSON.stringify(bad));
+  }
+  saved=await admin('books',{method:'POST',data:{...base,id,summary:'Edited without touching images'}});assert.equal(saved.status,200);book=await find();assert.equal(book.image2_url,second);assert.equal(book.gallery.length,2);
+  saved=await admin('books',{method:'POST',data:{...base,id,image2_url:'',gallery:[]}});assert.equal(saved.status,200);book=await find();assert.equal(book.image2_url,undefined);assert.equal(book.image2_small_url,undefined);assert.deepEqual(book.gallery,[]);
+});
+
 test('A Bachs-only store has no Flutterwave webhook and no Flutterwave form target',{skip:!bachsOnly},async()=>{
   const hook=await call('/books/api/webhook',{method:'POST',headers:{'verif-hash':'only-a-test-webhook-hash'},data:{event:'charge.completed',data:{id:1,tx_ref:'BS-test',status:'successful'}}});assert.equal(hook.status,404);
   const page=await call('/books/');assert.equal(page.status,200);assert.equal(page.headers.get('Content-Security-Policy').includes('flutterwave'),false);

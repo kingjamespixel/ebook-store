@@ -18,7 +18,7 @@ async function portal(enabled=false,extra={}){
   const data=options.body?JSON.parse(options.body):undefined;requests.push({url,options,data});let response={ok:true};
   if(url.endsWith('admin/session'))response={authenticated:true,csrf:'first-csrf'};
   if(url.endsWith('admin/settings'))response=settings;
-  if(url.endsWith('admin/books'))response={books:[]};
+  if(url.endsWith('admin/books'))response=options.method==='POST'?{ok:true,id:data.id||'new-book',slug:data.slug,url:'https://store.example.invalid/books/'+data.slug+'/'}:{books:extra.books||[]};
   if(url.endsWith('security/enroll'))response={secret:'TESTONLYSETUPKEY234567TESTONLYKEY',account:'owner',issuer:'Bookshop'};
   if(url.endsWith('security/enable')){settings.mfa_enabled=true;response={ok:true,csrf:'replacement-csrf',recovery_codes:['FIRST-FAKE-CODE','SECOND-FAKE-CODE']};}
   if(url.endsWith('security/recovery'))response={ok:true,csrf:'recovery-csrf',recovery_codes:['NEW-FAKE-CODE']};
@@ -50,4 +50,20 @@ test('A Bachs-only store shows no Flutterwave settings, and a store with both ga
  assert.match(text,/Bachs payments/);assert.match(text,/NGN uses Bachs card and bank transfer/);assert.ok(only.document.querySelector('[name="bachs_test"]'));
  const both=await portal(false,{flutterwave_enabled:true,ngn_gateway:'bachs'});
  assert.ok(both.document.querySelector('[name="ngn_gateway"]'));assert.ok(both.document.querySelector('[name="flutterwave_test"]'));assert.match(both.document.getElementById('portal').textContent,/NGN uses the gateway selected above/);
+});
+test('The book editor keeps, removes and saves the second image and sales page images',async()=>{
+ const book={id:'book-1',title:'Book with images',slug:'book-with-images',author:'Owner',category:'Books',price_ngn:3000,active:true,position:0,description_html:'<p>About</p>',image_url:'/books/api/cover/main.webp',image2_url:'/books/api/cover/back.webp',image2_small_url:'/books/api/cover/back-small.webp',gallery_title:'Readers say',gallery:[{url:'/books/api/cover/t1.webp',small_url:'/books/api/cover/t1-small.webp'},{url:'/books/api/cover/t2.webp',small_url:''}],cross_sell:[]};
+ const p=await portal(false,{books:[book]});
+ if(!p.window.HTMLElement.prototype.showModal)p.window.HTMLElement.prototype.showModal=function(){this.setAttribute('open','');};
+ const click=selector=>{const el=p.document.querySelector(selector);assert.ok(el,selector);el.dispatchEvent(new p.window.Event('click',{bubbles:true}));};
+ click('[data-tab="books"]');await tick();click('[data-edit-book="book-1"]');await tick();
+ const form=p.document.getElementById('book-form');assert.ok(form);
+ assert.equal(p.document.getElementById('image2-preview').getAttribute('src'),'/books/api/cover/back.webp');assert.equal(p.document.getElementById('image2-preview').hasAttribute('hidden'),false);
+ assert.equal(p.document.querySelectorAll('#gallery-list .gallery-item').length,2);assert.equal(p.document.getElementById('gallery_title').value,'Readers say');
+ assert.ok(p.document.querySelector('#gallery-file').hasAttribute('multiple'));
+ click('[data-remove-gallery="0"]');assert.equal(p.document.querySelectorAll('#gallery-list .gallery-item').length,1);assert.match(p.document.querySelector('#gallery-list img').getAttribute('src'),/t2\.webp/);
+ click('[data-remove-image2]');assert.equal(p.document.getElementById('image2-preview').hasAttribute('hidden'),true);
+ form.dispatchEvent(new p.window.Event('submit',{bubbles:true,cancelable:true}));await tick();
+ const saved=p.requests.filter(r=>r.url.endsWith('admin/books')&&r.options.method==='POST').at(-1);assert.ok(saved,'the book was saved');
+ assert.equal(saved.data.image2_url,'');assert.equal(saved.data.image2_small_url,'');assert.deepEqual(saved.data.gallery,[{url:'/books/api/cover/t2.webp',small_url:''}]);assert.equal(saved.data.gallery_title,'Readers say');assert.equal(saved.data.image_url,'/books/api/cover/main.webp');
 });

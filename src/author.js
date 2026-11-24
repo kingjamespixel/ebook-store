@@ -118,6 +118,18 @@ export async function authorApi(env,req,path) {
     data.description_html=sanitizeHtml(input.description_html??descriptionFrom(base));
     if(input.image_url){assert(/^\/books\/(assets\/[a-z0-9-]+\.webp|api\/cover\/[A-Za-z0-9_-]+\.webp)$/.test(input.image_url),400,'Upload a book cover through this portal.');data.image_url=input.image_url;}
     if(input.image_small_url){assert(/^\/books\/(assets\/[a-z0-9-]+\.webp|api\/cover\/[A-Za-z0-9_-]+\.webp)$/.test(input.image_small_url),400,'Please upload a mobile cover through this portal.');data.image_small_url=input.image_small_url;}
+    // Optional second product image. An empty value removes it.
+    const uploaded=value=>typeof value==='string'&&/^\/books\/api\/cover\/[A-Za-z0-9_-]+\.webp$/.test(value);
+    if('image2_url' in input){
+      if(input.image2_url){assert(uploaded(input.image2_url)&&(!input.image2_small_url||uploaded(input.image2_small_url)),400,'Upload the second book image through this portal.');data.image2_url=input.image2_url;data.image2_small_url=input.image2_small_url||'';}
+      else{delete data.image2_url;delete data.image2_small_url;}
+    }
+    // Optional sales page images, such as reader testimonial screenshots.
+    if('gallery' in input){
+      assert(Array.isArray(input.gallery)&&input.gallery.length<=12,400,'Add up to 12 sales page images.');
+      data.gallery=input.gallery.map(item=>{assert(item&&uploaded(item.url)&&(!item.small_url||uploaded(item.small_url)),400,'Upload sales page images through this portal.');return {url:item.url,small_url:item.small_url||''};});
+    }
+    if('gallery_title' in input)data.gallery_title=String(input.gallery_title||'').trim().slice(0,120);
     const {results:allIds}=await env.DB.prepare('SELECT id FROM books WHERE active=1').all(),allowed=new Set(allIds.map(b=>b.id));
     data.cross_sell=[...new Set(Array.isArray(input.cross_sell)?input.cross_sell:base.cross_sell||[])].filter(other=>other!==id&&allowed.has(other)).slice(0,20);
     const pdfKey=input.pdf_key??old?.pdf_key??null;
