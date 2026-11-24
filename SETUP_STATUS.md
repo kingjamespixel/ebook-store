@@ -44,7 +44,7 @@ Last updated: 23 November 2026.
 | Owner login and authenticator | Not initialized | Needs AUTHOR_INITIAL_PASSWORD as a private build secret before the first deploy. |
 | Catalog, covers and PDFs | Empty | Owner adds books in the portal. SEED_BOOKS stays empty. |
 | USD for other countries | Code ready | The portal currency list now has "USD (card)". Buyers outside the listed countries see US$ prices and pay by Bachs card (`USD_CARD`). Tested. |
-| Payments | Code ready, keys not entered | NGN can now use Bachs card (`NGN_CARD`) and bank transfer (`NGN_BANK_TRANSFER`), chosen with the new "Gateway for NGN payments" setting in the portal. Other currencies use Bachs mobile money. Sandbox tests pending. |
+| Payments | Code ready, keys not entered (Bachs only) | NGN can now use Bachs card (`NGN_CARD`) and bank transfer (`NGN_BANK_TRANSFER`), chosen with the new "Gateway for NGN payments" setting in the portal. Other currencies use Bachs mobile money. Sandbox tests pending. |
 | Lagos time | Done | Price windows change at midnight and noon Lagos time. Sales date filters, portal times and the CSV export use Africa/Lagos. |
 | Resend and support inbox | Pending | Needs a sending domain on evergreenchristian.online, verified in Resend. |
 | Privacy, terms, refunds, cancellation | Draft published in code | New /books/terms/ page covers purchase, prices, delivery, cancellation, refunds (3 to 7 working days once approved) and consumer rights. Linked in the footer and the checkout consent. Refund conditions await owner confirmation. |
@@ -54,6 +54,8 @@ Last updated: 23 November 2026.
 | Live launch | Not live for sales | Checkout stays in setup mode until the portal password is changed, the authenticator is on, Bachs keys are entered and sandbox purchases pass. |
 
 ## Code changes made for this store
+
+- Flutterwave removed from this store at the owner's request (24 Nov 2026). `store.config.json` now has `"payment_gateways": ["bachs"]`. Effects: the portal shows no Flutterwave keys and no NGN gateway choice; Flutterwave keys and `ngn_gateway: flutterwave` are refused; naira always uses Bachs `NGN_CARD` and `NGN_BANK_TRANSFER`; `/books/api/webhook` returns 404; the page security policy no longer allows Flutterwave checkout. The Flutterwave adapter stays in the code base for other installations and is still tested through `tests/fixtures/gateways.mjs`; `tests/gateways.test.mjs` checks this store's real configuration.
 
 - Owner portal moved to `/author/` at the owner's request (23 Nov 2026). `/author`, `/books/author` and `/books/author/` redirect there with 301, and the portal keeps the private-page headers (no framing, no outside scripts, no-store, noindex). The portal still uses the same private API under `/books/api/admin/`. Path-route mode now also routes `/author` and `/author/*`. Test: "The owner portal is served at /author/ and older portal addresses redirect there".
 

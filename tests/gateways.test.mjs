@@ -1,0 +1,59 @@
+// Checks the store exactly as store.config.json configures it. This store lists
+// only Bachs in payment_gateways, so Flutterwave must be unreachable: no portal
+// keys, no webhook, no checkout and no Content-Security-Policy allowance.
+import {test,before,after} from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile,readdir} from 'node:fs/promises';
+import {fileURLToPath} from 'node:url';
+import {build} from 'esbuild';
+import mfPackage from 'miniflare';
+const {Miniflare,convertV4MiniflareOptions}=mfPackage;
+
+const root=fileURLToPath(new URL('../',import.meta.url)),origin='https://bachs-only.example',password='bachs-only-store-test-password';
+const storeConfig=JSON.parse(await readFile(root+'store.config.json','utf8'));
+const bachsOnly=Array.isArray(storeConfig.payment_gateways)&&!storeConfig.payment_gateways.includes('flutterwave');
+const rates={NGN:1,GHS:.008,KES:.09,MWK:1.3,RWF:1.1,TZS:1.9,UGX:2.5,XAF:.45,XOF:.45,ZMW:.017,USD:.0007};
+const outbound=[];let mf,cookie,csrf,sequence=0;
+async function external(req){
+  const u=new URL(req.url);outbound.push(u.hostname+u.pathname);
+  if(u.hostname==='open.er-api.com')return Response.json({result:'success',base_code:'NGN',time_last_update_unix:Math.floor(Date.now()/1000),rates});
+  if(u.hostname==='sandbox-api.bachs.io'&&u.pathname==='/v1/checkout-sessions'&&req.method==='POST'){
+    const body=await req.json(),id='chk_only_'+(++sequence);outbound.push(JSON.stringify(body.payment_method_types));
+    return Response.json({checkout_id:id,checkout_url:'https://sandbox-checkout.bachs.io/c/token_'+sequence,status:'open',reference:body.reference},{status:201});
+  }
+  throw new Error('Unexpected external request '+u.hostname+u.pathname);
+}
+const call=(path,{method='GET',data,raw,headers={}}={})=>mf.dispatchFetch(origin+path,{method,redirect:'manual',cf:{country:'NG'},headers:{...(method!=='GET'?{Origin:origin}:{}),...(data?{'Content-Type':'application/json'}:{}),...headers},body:raw??(data?JSON.stringify(data):undefined)});
+const admin=(path,options={})=>call('/books/api/admin/'+path,{...options,headers:{Cookie:cookie,'X-BS-CSRF':csrf,...(options.headers||{})}});
+
+before(async()=>{
+  if(!bachsOnly)return;
+  const bundle=await build({entryPoints:[root+'src/worker.js'],bundle:true,write:false,format:'esm',platform:'browser',target:'es2022'});
+  mf=new Miniflare(convertV4MiniflareOptions({name:'bachs-only-store',cf:false,telemetry:{enabled:false},modules:true,script:bundle.outputFiles[0].text,compatibilityDate:'2026-10-10',bindings:{PUBLIC_ORIGIN:origin,CONFIG_KEY:'bachs-only-test-key-over-thirty-two-characters',AUTHOR_INITIAL_PASSWORD:password},d1Databases:['DB'],r2Buckets:['FILES'],outboundService:external,assets:{directory:root+'public',binding:'ASSETS',run_worker_first:true,routerConfig:{has_user_worker:true},assetConfig:{html_handling:'none',not_found_handling:'none'}}}));
+  const db=await mf.getD1Database('DB');for(const file of (await readdir(root+'migrations')).filter(f=>f.endsWith('.sql')).sort())await db.exec(await readFile(root+'migrations/'+file,'utf8'));
+  const login=await call('/books/api/admin/login',{method:'POST',data:{username:'owner',password}});const data=await login.json();assert.equal(login.status,200,JSON.stringify(data));
+  cookie=login.headers.get('Set-Cookie').split(';')[0];csrf=data.csrf;
+});
+after(async()=>{await mf?.dispose();});
+
+test('This store is configured for Bachs only',()=>{assert.ok(bachsOnly,'store.config.json payment_gateways should list only bachs');});
+
+test('A Bachs-only store refuses Flutterwave settings and routes naira through Bachs card and bank transfer',{skip:!bachsOnly},async()=>{
+  const settings=await (await admin('settings')).json();assert.equal(settings.flutterwave_enabled,false);assert.equal(settings.ngn_gateway,'bachs');
+  for(const data of [{flutterwave_test:'FLWSECK_TEST-only-a-test-value'},{flutterwave_live:'FLWSECK-only-a-test-value'},{webhook_secret:'only-a-test-webhook-hash'},{ngn_gateway:'flutterwave'}]){
+    const r=await admin('settings',{method:'POST',data:{current_password:password,...data}});assert.equal(r.status,400,JSON.stringify(data));
+  }
+  const saved=await admin('settings',{method:'POST',data:{current_password:password,mode:'test',currencies:['NGN','GHS'],bachs_test:'sk_sandbox_only_a_test_value',bachs_webhook_test:'whsec_only_a_test_value'}});assert.equal(saved.status,200,await saved.text());
+  const pdf=await admin('upload?kind=pdf',{method:'POST',raw:'%PDF-1.7\nTest book\n%%EOF'});const pdfKey=(await pdf.json()).key;assert.ok(pdfKey);
+  const book=await admin('books',{method:'POST',data:{title:'Bachs only test book',slug:'bachs-only-test-book',price_ngn:2000,active:true,pdf_key:pdfKey}});assert.equal(book.status,200,await book.text());
+  const catalog=await (await call('/books/api/catalog')).json();assert.equal(catalog.ngn_gateway,'bachs');assert.equal(catalog.checkout_enabled,true);
+  const item=catalog.books.find(b=>b.slug==='bachs-only-test-book');
+  const checkout=await call('/books/api/checkout',{method:'POST',headers:{'X-BS-Nonce':catalog.nonce,Cookie:cookie},data:{name:'Test Reader',email:'reader@example.com',currency:'NGN',books:[item.id],expected_amount:item.prices.NGN,consent:true}});
+  const order=await checkout.json();assert.equal(checkout.status,200,JSON.stringify(order));assert.equal(order.provider,'bachs');assert.equal(new URL(order.checkout_url).hostname,'sandbox-checkout.bachs.io');
+  assert.ok(outbound.includes('["NGN_CARD","NGN_BANK_TRANSFER"]'));assert.equal(outbound.some(h=>h.includes('flutterwave')),false);
+});
+
+test('A Bachs-only store has no Flutterwave webhook and no Flutterwave form target',{skip:!bachsOnly},async()=>{
+  const hook=await call('/books/api/webhook',{method:'POST',headers:{'verif-hash':'only-a-test-webhook-hash'},data:{event:'charge.completed',data:{id:1,tx_ref:'BS-test',status:'successful'}}});assert.equal(hook.status,404);
+  const page=await call('/books/');assert.equal(page.status,200);assert.equal(page.headers.get('Content-Security-Policy').includes('flutterwave'),false);
+});

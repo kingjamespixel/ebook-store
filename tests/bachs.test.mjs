@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {createHmac} from 'node:crypto';
 import {readFile,readdir} from 'node:fs/promises';
 import {build} from 'esbuild';
+import {bothGateways} from './fixtures/gateways.mjs';
 import mfPackage from 'miniflare';
 import {bachsCheckoutTarget,bachsPaymentIssue,validBachsSignature} from '../src/bachs.js';
 import {COUNTRY_CURRENCIES,SHOP_CURRENCIES,minorUnits} from '../src/markets.js';
@@ -74,7 +75,7 @@ function flwPayment(o,changes={}){
 }
 async function flwWebhook(o,tx,extra={}){return api('webhook',{method:'POST',headers:{'verif-hash':'flutterwave_webhook_secret'},data:{event:'charge.completed',data:{id:tx.id,tx_ref:o.row.ref,status:'successful'},...extra}});}
 before(async()=>{
-  const bundled=await build({entryPoints:[root+'tests/harness-worker.js'],bundle:true,write:false,format:'esm',platform:'browser',target:'es2022'});
+  const bundled=await build({entryPoints:[root+'tests/harness-worker.js'],bundle:true,write:false,format:'esm',platform:'browser',target:'es2022',plugins:[bothGateways]});
   mf=new Miniflare(convertV4MiniflareOptions({name:'bachs-bookshop-test',cf:false,telemetry:{enabled:false},modules:true,script:bundled.outputFiles[0].text,compatibilityDate:'2026-10-10',bindings:{CONFIG_KEY:'only-a-test-config-key-over-thirty-two-characters',PUBLIC_ORIGIN:origin,AUTHOR_INITIAL_PASSWORD:'only-for-test-initial-password'},d1Databases:['DB'],r2Buckets:['FILES'],assets:{directory:root+'public',binding:'ASSETS',run_worker_first:true,routerConfig:{has_user_worker:true},assetConfig:{html_handling:'none',not_found_handling:'none'}},outboundService:external}));
   db=await mf.getD1Database('DB');for(const name of (await readdir(root+'migrations')).filter(f=>f.endsWith('.sql')).sort())await db.exec(await readFile(root+'migrations/'+name,'utf8'));
   const catalog=(await api('catalog')).data;books=catalog.books;nonce=catalog.nonce;await login();

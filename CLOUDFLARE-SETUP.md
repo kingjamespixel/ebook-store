@@ -49,7 +49,7 @@ The portal shows complete URLs for your configured domain. Paths are:
 
 | Purpose | Path |
 | --- | --- |
-| Flutterwave charge webhook | /books/api/webhook |
+| Flutterwave charge webhook (only when payment_gateways includes flutterwave) | /books/api/webhook |
 | Bachs test webhook | /books/api/bachs/webhook/test |
 | Bachs live webhook | /books/api/bachs/webhook/live |
 

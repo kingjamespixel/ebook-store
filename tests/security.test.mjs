@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {readFile,readdir} from 'node:fs/promises';
 import {createHmac} from 'node:crypto';
 import {build} from 'esbuild';
+import {bothGateways} from './fixtures/gateways.mjs';
 import mfPackage from 'miniflare';
 import {hashPassword,hashPortalPassword,checkPortalPassword,decrypt,digest} from '../src/security.js';
 import {totpCode,issueSession} from '../src/portal-security.js';
@@ -38,7 +39,7 @@ async function enroll(){
   return {secret:start.data.secret,codes:enabled.data.recovery_codes};
 }
 before(async()=>{
-  const bundled=await build({entryPoints:[root+'tests/harness-worker.js'],bundle:true,write:false,format:'esm',platform:'browser',target:'es2022'});
+  const bundled=await build({entryPoints:[root+'tests/harness-worker.js'],bundle:true,write:false,format:'esm',platform:'browser',target:'es2022',plugins:[bothGateways]});
   mf=new Miniflare(convertV4MiniflareOptions({name:'security-regression',cf:false,telemetry:{enabled:false},modules:true,script:bundled.outputFiles[0].text,compatibilityDate:'2026-10-10',bindings:{...env,PUBLIC_ORIGIN:origin,AUTHOR_INITIAL_PASSWORD:password},d1Databases:['DB'],r2Buckets:['FILES'],assets:{directory:root+'public',binding:'ASSETS',run_worker_first:true,routerConfig:{has_user_worker:true},assetConfig:{html_handling:'none',not_found_handling:'none'}},outboundService:()=>Response.json({})}));
   db=await mf.getD1Database('DB');for(const file of (await readdir(root+'migrations')).filter(x=>x.endsWith('.sql')).sort())await db.exec(await readFile(root+'migrations/'+file,'utf8'));
   await api('admin/session');basePassword=(await db.prepare("SELECT value FROM settings WHERE key='author_password'").first()).value;

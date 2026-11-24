@@ -35,7 +35,7 @@ For a local run, copy .dev.vars.example to .dev.vars, generate a fresh random CO
 
 | Provider | Current implementation |
 | --- | --- |
-| Flutterwave | v3 Standard collection in NGN with server verification |
+| Flutterwave | v3 Standard collection in NGN with server verification. Turned off in this store: `payment_gateways` in store.config.json lists only `bachs`, so the portal, checkout and `/books/api/webhook` do not offer it |
 | Bachs | GHS, KES, MWK, RWF, TZS, UGX, XAF, XOF and ZMW mobile money, and NGN card and bank transfer when the portal's NGN gateway is set to Bachs, with authenticated checkout verification and matching signed success proof |
 | Other gateways | Require an adapter and meaningful tests before live use |
 

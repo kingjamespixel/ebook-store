@@ -9,11 +9,11 @@ class FormValues{
  constructor(form){this.values=[...form.querySelectorAll('[name]')].filter(el=>!['checkbox','radio'].includes(el.type)||el.checked).map(el=>[el.name,el.value]);}
  entries(){return this.values.values();}getAll(name){return this.values.filter(v=>v[0]===name).map(v=>v[1]);}
 }
-async function portal(enabled=false){
+async function portal(enabled=false,extra={}){
  const {window,document}=parseHTML('<html><body><main id="portal"></main><dialog id="book-dialog"></dialog><div id="notice" hidden></div></body></html>'),requests=[];
  Object.defineProperty(window.HTMLSelectElement.prototype,'value',{configurable:true,get(){return [...this.querySelectorAll('option')].find(o=>o.hasAttribute('selected'))?.value||this.querySelector('option')?.value||'';},set(v){for(const o of this.querySelectorAll('option'))o.toggleAttribute('selected',o.value===v);}});
  window.HTMLElement.prototype.reset=function(){for(const el of this.querySelectorAll('[name]'))el.value=el.getAttribute('value')||'';};
- const settings={username:'owner',mode:'setup',currencies:['NGN'],active_currencies:[],typography:'classic',public_origin:'https://store.example.invalid',support_email:'support@example.invalid',mfa_enabled:enabled};
+ const settings={username:'owner',mode:'setup',currencies:['NGN'],active_currencies:[],typography:'classic',public_origin:'https://store.example.invalid',support_email:'support@example.invalid',mfa_enabled:enabled,...extra};
  const fetch=async(url,options={})=>{
   const data=options.body?JSON.parse(options.body):undefined;requests.push({url,options,data});let response={ok:true};
   if(url.endsWith('admin/session'))response={authenticated:true,csrf:'first-csrf'};
@@ -43,4 +43,11 @@ test('Enabled MFA appears in settings and password confirmation and sends a code
  const p=await portal(true);assert.ok(p.document.getElementById('settings-code'));assert.ok(p.document.getElementById('password-code'));assert.equal(p.document.getElementById('security-enroll-form'),null);
  await submit(p,'password-form',{current_password:'only-for-ui-test-password',new_password:'only-for-ui-test-new-password',confirm_password:'only-for-ui-test-new-password',security_code:'123456'});
  const sent=p.requests.find(r=>r.url.endsWith('admin/password')).data;assert.equal(sent.security_code,'123456');assert.equal(sent.new_password,'only-for-ui-test-new-password');assert.ok(p.document.querySelector('#login [name=security_code]'));
+});
+test('A Bachs-only store shows no Flutterwave settings, and a store with both gateways keeps the naira choice',async()=>{
+ const only=await portal(false,{flutterwave_enabled:false});const text=only.document.getElementById('portal').textContent;
+ assert.doesNotMatch(text,/Flutterwave/);assert.equal(only.document.querySelector('[name="flutterwave_test"]'),null);assert.equal(only.document.querySelector('[name="webhook_secret"]'),null);assert.equal(only.document.querySelector('[name="ngn_gateway"]'),null);
+ assert.match(text,/Bachs payments/);assert.match(text,/NGN uses Bachs card and bank transfer/);assert.ok(only.document.querySelector('[name="bachs_test"]'));
+ const both=await portal(false,{flutterwave_enabled:true,ngn_gateway:'bachs'});
+ assert.ok(both.document.querySelector('[name="ngn_gateway"]'));assert.ok(both.document.querySelector('[name="flutterwave_test"]'));assert.match(both.document.getElementById('portal').textContent,/NGN uses the gateway selected above/);
 });

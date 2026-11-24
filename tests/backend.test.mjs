@@ -7,6 +7,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {build} from 'esbuild';
+import {bothGateways} from './fixtures/gateways.mjs';
 import mfPackage from 'miniflare';
 import {downloadUrl} from '../src/payments.js';
 const {Miniflare,convertV4MiniflareOptions}=mfPackage;
@@ -57,7 +58,7 @@ function paid(order,changes={}){const tx={id:++sequence,status:'successful',tx_r
 async function verify(order,extra={}){return api('verify',{method:'POST',publicPost:true,data:{ref:order.ref,key:order.key,...extra}});}
 async function updateBook(book,extra={}){const {response,data}=await api('admin/books',{method:'POST',auth:true,data:{...book,...extra}});assert.equal(response.status,200,JSON.stringify(data));return data;}
 before(async()=>{
- const bundled=await build({entryPoints:[root+'tests/harness-worker.js'],bundle:true,write:false,format:'esm',platform:'browser',target:'es2022'});
+ const bundled=await build({entryPoints:[root+'tests/harness-worker.js'],bundle:true,write:false,format:'esm',platform:'browser',target:'es2022',plugins:[bothGateways]});
  mf=new Miniflare(convertV4MiniflareOptions({name:'bookshop-test',cf:false,telemetry:{enabled:false},modules:true,script:bundled.outputFiles[0].text,compatibilityDate:'2026-10-10',bindings:{CONFIG_KEY:'test-only-encryption-key-at-least-thirty-two-characters',PUBLIC_ORIGIN:origin,AUTHOR_INITIAL_PASSWORD:'only-for-test-initial-password'},d1Databases:['DB'],r2Buckets:['FILES'],assets:{directory:root+'public',binding:'ASSETS',run_worker_first:true,routerConfig:{has_user_worker:true},assetConfig:{html_handling:'none',not_found_handling:'none'}},outboundService:external}));
  db=await mf.getD1Database('DB');files=await mf.getR2Bucket('FILES');for(const file of (await readdir(root+'migrations')).filter(f=>f.endsWith('.sql')).sort())await db.exec(await readFile(root+'migrations/'+file,'utf8'));
  const catalog=(await api('catalog')).data;books=catalog.books;nonce=catalog.nonce;

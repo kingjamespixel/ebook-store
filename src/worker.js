@@ -1,4 +1,4 @@
-import {BRAND} from './brand.js';
+import {BRAND,FLUTTERWAVE_ENABLED} from './brand.js';
 import {SEED_BOOKS} from './seed.js';
 import {assert,json,HttpError,bodyJson,sameOrigin,sign,verifySignature,constantEqual,decrypt,escapeHtml} from './security.js';
 import {initialize,settings,catalog,purchaseCounts,automaticCurrency,rateLimit,clientIp,now,originFor} from './store.js';
@@ -10,7 +10,7 @@ const BASE='/books',API=BASE+'/api/',PORTAL='/author';
 const headers={
   'X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','X-Frame-Options':'SAMEORIGIN',
   'Permissions-Policy':'camera=(), microphone=(), geolocation=()',
-  'Content-Security-Policy':"default-src 'self'; script-src 'self' https://connect.facebook.net https://checkout.bachs.io; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://www.facebook.com; connect-src 'self' https://www.facebook.com https://connect.facebook.net; frame-src 'self' https://checkout.bachs.io https://sandbox-checkout.bachs.io; object-src 'none'; base-uri 'self'; form-action 'self' https://checkout.flutterwave.com; frame-ancestors 'self'"
+  'Content-Security-Policy':"default-src 'self'; script-src 'self' https://connect.facebook.net https://checkout.bachs.io; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://www.facebook.com; connect-src 'self' https://www.facebook.com https://connect.facebook.net; frame-src 'self' https://checkout.bachs.io https://sandbox-checkout.bachs.io; object-src 'none'; base-uri 'self'; form-action 'self'"+(FLUTTERWAVE_ENABLED?" https://checkout.flutterwave.com":"")+"; frame-ancestors 'self'"
 };
 async function publicNonce(env) {const expiry=now()+3600;return expiry+'.'+await sign(env,'public/'+expiry);}
 async function checkNonce(env,req) {const [expiry,signature]=String(req.headers.get('X-BS-Nonce')||'').split('.');assert(Number(expiry)>=now()&&Number(expiry)<=now()+3660&&await verifySignature(env,'public/'+expiry,signature||''),403,'Please refresh this page and try again.');}
@@ -54,6 +54,7 @@ async function handle(env,req,ctx) {
       return json({received:true});
     }
     if(action==='webhook'&&req.method==='POST'){
+      assert(FLUTTERWAVE_ENABLED,404,'We could not find that action.');
       const s=await settings(env),secret=await decrypt(env,s.webhook_secret);assert(secret&&constantEqual(req.headers.get('verif-hash'),secret),401,'Webhook signature did not match.');
       const body=await bodyJson(req,64000),tx=body.data;
       if((!body.event||body.event==='charge.completed')&&tx?.tx_ref&&/^[0-9]{1,30}$/.test(String(tx.id))){const order=await env.DB.prepare('SELECT * FROM orders WHERE ref=?').bind(String(tx.tx_ref)).first();if(order&&order.provider!=='bachs'){const confirmed=await reconcile(env,order,tx.id);ctx.waitUntil(receiptEmail(env,confirmed,req).then(()=>flushMeta(env,2)).catch(()=>console.error('Payment delivery needs another attempt.')));}}
