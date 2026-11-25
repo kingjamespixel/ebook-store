@@ -67,3 +67,9 @@ test('The book editor keeps, removes and saves the second image and sales page i
  const saved=p.requests.filter(r=>r.url.endsWith('admin/books')&&r.options.method==='POST').at(-1);assert.ok(saved,'the book was saved');
  assert.equal(saved.data.image2_url,'');assert.equal(saved.data.image2_small_url,'');assert.deepEqual(saved.data.gallery,[{url:'/books/api/cover/t2.webp',small_url:''}]);assert.equal(saved.data.gallery_title,'Readers say');assert.equal(saved.data.image_url,'/books/api/cover/main.webp');
 });
+test('A Brevo store asks for a Brevo API key instead of a Resend key',async()=>{
+ const brevo=await portal(false,{email_provider:'brevo',has_brevo_key:true});
+ assert.ok(brevo.document.querySelector('[name="brevo_key"]'));assert.equal(brevo.document.querySelector('[name="resend_key"]'),null);
+ const text=brevo.document.getElementById('portal').textContent;assert.match(text,/Brevo API key/);assert.match(text,/Block unknown IP addresses/);assert.doesNotMatch(text,/Resend/);
+ const resend=await portal(false,{email_provider:'resend'});assert.ok(resend.document.querySelector('[name="resend_key"]'));assert.equal(resend.document.querySelector('[name="brevo_key"]'),null);
+});

@@ -9,7 +9,7 @@ The production catalog starts empty. Gateway keys, email keys and tracking IDs a
 1. Extract the ZIP and create a new repository in your own GitHub account. Upload this directory's contents, including source, configuration, migrations and tests. Put package.json at the repository root. Uploading only a ZIP to GitHub does not extract its contents.
 2. Give Claude access to that new repository or attach this source package. Use an interface that can edit files if you want it to implement changes. A read-only GitHub integration cannot push code by itself.
 3. Paste the complete CLAUDE_SETUP_PROMPT.txt into Claude. It will collect your business facts, domain, email, catalog, providers, currencies and optional tracking choices.
-4. Use your own Cloudflare, gateway, Resend and Meta accounts. Enter secrets through secure dashboards or the private portal. Never paste secrets into chat, source or issues.
+4. Use your own Cloudflare, gateway, email (Brevo or Resend, chosen by `email_provider` in store.config.json) and Meta accounts. Enter secrets through secure dashboards or the private portal. Never paste secrets into chat, source or issues.
 
 ## Configure your public identity
 

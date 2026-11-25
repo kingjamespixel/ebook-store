@@ -11,5 +11,6 @@
   "bucket_name": "evergreen-book-files",
   "logo_url": "/books/assets/evergreen-logo.jpg",
   "deployment_mode": "custom-domain",
-  "payment_gateways": ["bachs"]
+  "payment_gateways": ["bachs"],
+  "email_provider": "brevo"
 }

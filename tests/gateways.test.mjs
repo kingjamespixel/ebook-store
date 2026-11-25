@@ -13,10 +13,15 @@ const root=fileURLToPath(new URL('../',import.meta.url)),origin='https://bachs-o
 const storeConfig=JSON.parse(await readFile(root+'store.config.json','utf8'));
 const bachsOnly=Array.isArray(storeConfig.payment_gateways)&&!storeConfig.payment_gateways.includes('flutterwave');
 const rates={NGN:1,GHS:.008,KES:.09,MWK:1.3,RWF:1.1,TZS:1.9,UGX:2.5,XAF:.45,XOF:.45,ZMW:.017,USD:.0007};
-const outbound=[];let mf,cookie,csrf,sequence=0;
+const outbound=[],brevo=[];let mf,cookie,csrf,sequence=0;
 async function external(req){
   const u=new URL(req.url);outbound.push(u.hostname+u.pathname);
   if(u.hostname==='open.er-api.com')return Response.json({result:'success',base_code:'NGN',time_last_update_unix:Math.floor(Date.now()/1000),rates});
+  if(u.hostname==='api.brevo.com'&&u.pathname==='/v3/smtp/email'&&req.method==='POST'){
+    const body=await req.json();brevo.push({key:req.headers.get('api-key'),authorization:req.headers.get('Authorization'),body});
+    if(req.headers.get('api-key')==='xkeysib-good-test-key')return Response.json({messageId:'<test.'+brevo.length+'@relay.example>'},{status:201});
+    return Response.json({code:'unauthorized',message:'Key not found'},{status:401});
+  }
   if(u.hostname==='sandbox-api.bachs.io'&&u.pathname==='/v1/checkout-sessions'&&req.method==='GET'){
     const auth=req.headers.get('Authorization');if(auth==='Bearer sk_sandbox_only_a_test_value')return Response.json({data:[]});
     return Response.json({detail:'Invalid API key'},{status:auth==='Bearer sk_sandbox_no_scope_value'?403:401});
@@ -64,6 +69,31 @@ test('The Bachs key check explains a missing key, a wrong key and a key without 
     const saved=await admin('settings',{method:'POST',data:{current_password:password,bachs_test:key}});assert.equal(saved.status,200,await saved.text());
     r=await check('test');assert.match(r.message,pattern,key);
   }
+});
+
+test('Pasted keys with stray spaces save, and a key in the wrong field gets a clear message',{skip:!bachsOnly},async()=>{
+  const save=data=>admin('settings',{method:'POST',data:{current_password:password,...data}});
+  let r=await save({bachs_live:'  sk_live_Test.key-123_ok \r\n'});assert.equal(r.status,200,await r.text());
+  assert.equal((await (await admin('settings')).json()).has_bachs_live,true);
+  for(const [data,pattern] of [[{bachs_live:'sk_sandbox_wrong_field_value'},/That is a sandbox key/],[{bachs_test:'sk_live_wrong_field_value'},/That is a live key/],[{bachs_live:'pk_live_not_a_secret_key'},/starts with sk_live_/],[{bachs_live:'sk_live_two words here'},/without spaces/]]){
+    r=await save(data);assert.equal(r.status,400,JSON.stringify(data));assert.match((await r.json()).message,pattern);
+  }
+  r=await admin('bachs/check',{method:'POST',data:{mode:'live'}});assert.doesNotMatch((await r.json()).message,/No Bachs live API key is saved yet/);
+});
+
+test('Receipts and test emails go through Brevo with the saved key, sender and reply address',{skip:!bachsOnly},async()=>{
+  const save=data=>admin('settings',{method:'POST',data:{current_password:password,...data}});
+  const before=await (await admin('settings')).json();assert.equal(before.email_provider,'brevo');assert.equal(before.has_brevo_key,false);
+  let r=await save({resend_key:'re_test_resend_key_value'});assert.equal(r.status,400);assert.match((await r.json()).message,/through Brevo/);
+  r=await save({brevo_key:' xkeysib-good-test-key\n',from_email:'books@bachs-only.example',from_name:'Evergreen Christian',support_email:'help@bachs-only.example'});assert.equal(r.status,200,await r.text());
+  assert.equal((await (await admin('settings')).json()).has_brevo_key,true);assert.equal((await (await call('/books/api/catalog')).json()).contact_enabled,true);
+  r=await admin('test-email',{method:'POST',data:{}});assert.equal(r.status,200,await r.text());
+  const sent=brevo.at(-1);assert.equal(sent.key,'xkeysib-good-test-key');assert.equal(sent.authorization,null);
+  assert.deepEqual(sent.body.sender,{name:'Evergreen Christian',email:'books@bachs-only.example'});assert.deepEqual(sent.body.to,[{email:'help@bachs-only.example'}]);assert.deepEqual(sent.body.replyTo,{email:'help@bachs-only.example'});
+  assert.ok(sent.body.subject);assert.match(sent.body.htmlContent,/email service accepted this test/);assert.ok(sent.body.headers['X-Mailin-custom']);
+  r=await save({brevo_key:'xkeysib-revoked-test-key'});assert.equal(r.status,200);
+  r=await admin('test-email',{method:'POST',data:{}});assert.equal(r.status,502);assert.match((await r.json()).message,/Brevo rejected the API key/);
+  r=await save({brevo_key:'xkeysib-good-test-key'});assert.equal(r.status,200);
 });
 
 test('Books keep a second product image and up to 12 uploaded sales page images, and refuse outside links',{skip:!bachsOnly},async()=>{

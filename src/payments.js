@@ -1,4 +1,4 @@
-import {BRAND} from './brand.js';
+import {BRAND,EMAIL_PROVIDER,EMAIL_KEY,emailReady} from './brand.js';
 import {assert,randomToken,digest,encrypt,decrypt,sign,verifySignature,escapeHtml,constantEqual} from './security.js';
 import {now,settings,originFor,upstream,rates,bookPrices,automaticCurrency} from './store.js';
 import {zipStream} from './zip.js';
@@ -21,7 +21,7 @@ export async function flutterwave(env,s,path,method='GET',body,mode=s.mode) {
 export async function checkout(env,req,data) {
   const s=await settings(env);
   await authorizeTestAccess(env,req,s.mode);
-  assert(['test','live'].includes(s.mode)&&(s.mode==='test'||s.resend_key&&s.from_email),503,'Checkout is not available yet. Please contact support.');
+  assert(['test','live'].includes(s.mode)&&(s.mode==='test'||emailReady(s)),503,'Checkout is not available yet. Please contact support.');
   assert(!data.website,400,'Please check your details.');
   const name=String(data.name||'').trim(),email=String(data.email||'').trim().toLowerCase();
   assert(name.length>=2&&name.length<=120&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)&&email.length<=200,400,'Please enter your name and a valid email address.');
@@ -128,8 +128,17 @@ export async function downloadUrl(env,s,order,id,req,expires=now()+172800) {
   const signature=await sign(env,order.ref+'.'+id+'.'+expires);
   return originFor(env,s,req)+'/books/api/download?ref='+encodeURIComponent(order.ref)+'&book='+encodeURIComponent(id)+'&e='+expires+'&s='+encodeURIComponent(signature);
 }
+// Brevo error codes that the owner can act on. Other codes get a general message.
+const BREVO_ERRORS={unauthorized:'Brevo rejected the API key. Paste a current key from Brevo, SMTP & API, API keys.','Authentication failed':'Brevo rejected the API key. Paste a current key from Brevo, SMTP & API, API keys.','api-key not found':'Brevo could not find this API key. Create a new key in Brevo and save it again.','permission_denied':'Brevo blocked this request. If Authorized IPs is on in your Brevo security settings, turn off "Block unknown IP addresses".','DNS records not properly configured':'Brevo has not verified your sending domain yet. Add the DNS records Brevo shows for your domain, then verify it in Brevo.','DMARC policy requires domain authentication':'Brevo needs your sending domain to be authenticated before it can send. Authenticate the domain in Brevo.','Insufficient credits':'Your Brevo account has no email credits left.'};
 export async function mail(env,s,to,subject,html,idempotencyKey) {
-  assert(s.resend_key&&s.from_email,503,'Email setup is incomplete.');
+  assert(emailReady(s),503,'Email setup is incomplete.');
+  if(EMAIL_PROVIDER==='brevo'){
+    const {response,data}=await upstream(env,'https://api.brevo.com/v3/smtp/email',{method:'POST',headers:{'api-key':await decrypt(env,s.brevo_key),'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({sender:{name:String(s.from_name||BRAND.store_name).slice(0,70),email:s.from_email},to:[{email:to}],...(s.support_email?{replyTo:{email:s.support_email}}:{}),subject,htmlContent:html,headers:{'X-Mailin-custom':String(idempotencyKey||'').slice(0,200)}})});
+    // Brevo has no documented duplicate protection, so receipts rely on the store's own send records.
+    const id=data?.messageId||data?.messageIds?.[0];
+    assert(response.ok&&id,502,BREVO_ERRORS[data?.code]||BREVO_ERRORS[data?.message]||(response.status===401||response.status===403?BREVO_ERRORS.permission_denied:'Our email service could not accept this message.'));
+    return id;
+  }
   const {response,data}=await upstream(env,'https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+await decrypt(env,s.resend_key),'Content-Type':'application/json','Idempotency-Key':idempotencyKey},body:JSON.stringify({from:(s.from_name||BRAND.store_name)+' <'+s.from_email+'>',to:[to],reply_to:s.support_email,subject,html})});
   assert(response.ok&&data.id,502,'Our email service could not accept this message.');return data.id;
 }

@@ -1,4 +1,4 @@
-import {BRAND,FLUTTERWAVE_ENABLED} from './brand.js';
+import {BRAND,FLUTTERWAVE_ENABLED,EMAIL_PROVIDER,EMAIL_KEY,emailReady} from './brand.js';
 import {assert,json,bodyJson,sameOrigin,randomToken,digest,checkPortalPassword,hashPortalPassword,pepperPasswordHash,constantEqual,encrypt,sanitizeHtml,limitedBytes,webpDimensions,csvCell,escapeHtml} from './security.js';
 import {now,settings,saveSettings,clientIp,rateLimit,rowBook,descriptionFrom,originFor,startingSales} from './store.js';
 import {mail,receiptEmail,reconcile,confirmationMessage} from './payments.js';
@@ -32,7 +32,7 @@ export async function authorApi(env,req,path) {
   if(path==='admin/logout'&&req.method==='POST'){
     await env.DB.prepare('DELETE FROM sessions WHERE token_hash=?').bind(auth.token_hash).run();return json({ok:true},200,{'Set-Cookie':cookie(req,'',0)});
   }
-  if(path==='admin/settings'&&req.method==='GET')return json({store_name:BRAND.store_name,mode:s.mode,support_email:s.support_email,from_email:s.from_email,from_name:s.from_name,pixel_id:s.pixel_id,meta_enabled:s.meta_enabled==='1',meta_test_code:s.meta_test_code||'',has_meta_token:Boolean(s.meta_access_token),typography:s.typography||'classic',featured_book_id:s.featured_book_id||'',currencies:configuredCurrencies(s),active_currencies:activeCurrencies(s),ngn_gateway:ngnGateway(s),reminder_enabled:s.reminder_enabled==='1',public_origin:originFor(env,s,req),mfa_enabled:Boolean(s.author_totp),default_password:s.default_password==='1',flutterwave_enabled:FLUTTERWAVE_ENABLED,has_test_key:Boolean(s.flutterwave_test),has_live_key:Boolean(s.flutterwave_live),has_webhook_secret:Boolean(s.webhook_secret),has_resend_key:Boolean(s.resend_key),has_bachs_test:Boolean(s.bachs_test),has_bachs_live:Boolean(s.bachs_live),has_bachs_webhook_test:Boolean(s.bachs_webhook_test),has_bachs_webhook_live:Boolean(s.bachs_webhook_live),bachs_webhook_test_url:originFor(env,s,req)+'/books/api/bachs/webhook/test',bachs_webhook_live_url:originFor(env,s,req)+'/books/api/bachs/webhook/live',username:s.author_username,webhook_url:originFor(env,s,req)+'/books/api/webhook'});
+  if(path==='admin/settings'&&req.method==='GET')return json({store_name:BRAND.store_name,mode:s.mode,support_email:s.support_email,from_email:s.from_email,from_name:s.from_name,pixel_id:s.pixel_id,meta_enabled:s.meta_enabled==='1',meta_test_code:s.meta_test_code||'',has_meta_token:Boolean(s.meta_access_token),typography:s.typography||'classic',featured_book_id:s.featured_book_id||'',currencies:configuredCurrencies(s),active_currencies:activeCurrencies(s),ngn_gateway:ngnGateway(s),reminder_enabled:s.reminder_enabled==='1',public_origin:originFor(env,s,req),mfa_enabled:Boolean(s.author_totp),default_password:s.default_password==='1',flutterwave_enabled:FLUTTERWAVE_ENABLED,has_test_key:Boolean(s.flutterwave_test),has_live_key:Boolean(s.flutterwave_live),has_webhook_secret:Boolean(s.webhook_secret),has_resend_key:Boolean(s.resend_key),email_provider:EMAIL_PROVIDER,has_brevo_key:Boolean(s.brevo_key),has_bachs_test:Boolean(s.bachs_test),has_bachs_live:Boolean(s.bachs_live),has_bachs_webhook_test:Boolean(s.bachs_webhook_test),has_bachs_webhook_live:Boolean(s.bachs_webhook_live),bachs_webhook_test_url:originFor(env,s,req)+'/books/api/bachs/webhook/test',bachs_webhook_live_url:originFor(env,s,req)+'/books/api/bachs/webhook/live',username:s.author_username,webhook_url:originFor(env,s,req)+'/books/api/webhook'});
   if(path==='admin/settings'&&req.method==='POST'){
     const data=await bodyJson(req,12000),updates={};
     for(const key of ['support_email','from_email'])if(key in data){assert(!data[key]||/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(data[key]),400,'Please enter a valid email address.');updates[key]=String(data[key]).slice(0,200);}
@@ -48,22 +48,33 @@ export async function authorApi(env,req,path) {
     if('ngn_gateway' in data){assert(NGN_GATEWAYS.includes(data.ngn_gateway),400,FLUTTERWAVE_ENABLED?'Choose Flutterwave or Bachs for naira payments.':'This store takes naira payments through Bachs.');updates.ngn_gateway=data.ngn_gateway;}
     if('reminder_enabled' in data)updates.reminder_enabled=data.reminder_enabled?'1':'0';
     if(!FLUTTERWAVE_ENABLED)assert(!['flutterwave_test','flutterwave_live','webhook_secret'].some(key=>data[key]),400,'This store takes payments through Bachs only.');
-    for(const key of ['flutterwave_test','flutterwave_live','webhook_secret','resend_key','bachs_test','bachs_live','bachs_webhook_test','bachs_webhook_live']){
-      if(data[key]){
-        assert(typeof data[key]==='string'&&data[key].length>=12&&data[key].length<=500,400,'Please check the '+key.replaceAll('_',' ')+' value.');
-        if(key.startsWith('flutterwave_'))assert(/^FLWSECK(?:_TEST)?-/.test(data[key])&&(key==='flutterwave_test'?data[key].includes('_TEST-'):!data[key].includes('_TEST-')),400,'Use the matching Flutterwave v3 secret key.');
-        if(key==='bachs_test'||key==='bachs_live')assert((key==='bachs_test'?/^sk_sandbox_[A-Za-z0-9_-]+$/:/^sk_live_[A-Za-z0-9_-]+$/).test(data[key]),400,'Use the matching Bachs sandbox or live API key.');
-        updates[key]=await encrypt(env,data[key]);
+    const otherEmailKey=EMAIL_KEY==='brevo_key'?'resend_key':'brevo_key';
+    assert(!data[otherEmailKey],400,EMAIL_KEY==='brevo_key'?'This store sends email through Brevo. Paste your Brevo API key instead.':'This store sends email through Resend. Paste your Resend API key instead.');
+    const secretLabels={bachs_test:'Bachs sandbox API key',bachs_live:'Bachs live API key',bachs_webhook_test:'Bachs sandbox webhook signing secret',bachs_webhook_live:'Bachs live webhook signing secret',resend_key:'Resend API key',brevo_key:'Brevo API key',flutterwave_test:'Flutterwave test key',flutterwave_live:'Flutterwave live key',webhook_secret:'Flutterwave webhook hash'};
+    for(const key of ['flutterwave_test','flutterwave_live','webhook_secret',EMAIL_KEY,'bachs_test','bachs_live','bachs_webhook_test','bachs_webhook_live']){
+      // Copying a key often brings a space or line break with it. Remove those before checking.
+      const value=typeof data[key]==='string'?data[key].trim():data[key];
+      if(value){
+        const label=secretLabels[key];
+        assert(typeof value==='string'&&value.length>=12&&value.length<=500&&!/\s/.test(value),400,'Please check the '+label+'. It should be one piece of text without spaces.');
+        if(key.startsWith('flutterwave_'))assert(/^FLWSECK(?:_TEST)?-/.test(value)&&(key==='flutterwave_test'?value.includes('_TEST-'):!value.includes('_TEST-')),400,'Use the matching Flutterwave v3 secret key.');
+        if(key==='bachs_test'||key==='bachs_live'){
+          const live=key==='bachs_live',own=live?'sk_live_':'sk_sandbox_',other=live?'sk_sandbox_':'sk_live_';
+          assert(!value.startsWith(other),400,live?'That is a sandbox key (it starts with sk_sandbox_). Paste it into the Sandbox API key field, and put your sk_live_ key here.':'That is a live key (it starts with sk_live_). Paste it into the Live API key field, and put your sk_sandbox_ key here.');
+          assert(value.startsWith(own)&&/^[\x21-\x7e]+$/.test(value),400,'A '+label+' starts with '+own+'. Copy the whole key from the Bachs Developer Portal and paste it again.');
+        }
+        if(key==='brevo_key')assert(/^[\x21-\x7e]+$/.test(value),400,'Please check the Brevo API key. Copy it again from Brevo under SMTP & API, API keys.');
+        updates[key]=await encrypt(env,value);
       }
     }
     const combined={...s,...updates},mode=data.mode??s.mode;
     if(combined.meta_enabled==='1')assert(combined.pixel_id&&combined.meta_access_token,400,'Add your Pixel ID and Conversions API token before enabling API tracking.');
     assert(['setup','test','live'].includes(mode),400,'Choose setup, test or live mode.');
     if(mode!=='setup')assert(activeCurrencies({...combined,mode}).length>0,400,'Add a payment key and its webhook secret for at least one enabled currency before enabling checkout.');
-    if(mode==='live')assert(combined.resend_key&&combined.from_email,400,'Add your email key and verified sender before enabling live checkout.');
+    if(mode==='live')assert(emailReady(combined),400,'Add your email key and verified sender before enabling live checkout.');
     if(mode==='live')assert(combined.default_password!=='1',400,'Change your initial portal password before enabling live checkout.');
     updates.mode=mode;
-    const sensitive=new Set(['mode','ngn_gateway','public_origin','support_email','from_email','from_name','pixel_id','meta_enabled','meta_test_code','meta_access_token','flutterwave_test','flutterwave_live','webhook_secret','resend_key','bachs_test','bachs_live','bachs_webhook_test','bachs_webhook_live']);
+    const sensitive=new Set(['mode','ngn_gateway','public_origin','support_email','from_email','from_name','pixel_id','meta_enabled','meta_test_code','meta_access_token','flutterwave_test','flutterwave_live','webhook_secret','resend_key','brevo_key','bachs_test','bachs_live','bachs_webhook_test','bachs_webhook_live']);
     if(Object.entries(updates).some(([key,value])=>sensitive.has(key)&&String(value)!==String(s[key]??'')))await reauthenticate(env,s,auth,data);
     await saveSettings(env,updates);return json({ok:true});
   }

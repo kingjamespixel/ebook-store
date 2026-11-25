@@ -1,4 +1,4 @@
-import {BRAND} from './brand.js';
+import {BRAND,emailReady} from './brand.js';
 import {SEED_BOOKS} from './seed.js';
 import {assert,digest,hashPortalPassword,sanitizeHtml} from './security.js';
 import {SHOP_CURRENCIES,ALL_CURRENCIES,currencyFor,configuredCurrencies,activeCurrencies,currencyDecimals,ngnGateway} from './markets.js';
@@ -12,7 +12,7 @@ export async function initialize(env) {
     const exists=await env.DB.prepare("SELECT value FROM settings WHERE key='initialized'").first();
     if(exists)return;
     assert(typeof env.AUTHOR_INITIAL_PASSWORD==='string'&&env.AUTHOR_INITIAL_PASSWORD.length>=15&&env.AUTHOR_INITIAL_PASSWORD.length<=256,503,'Set a private initial author password before the first deployment.');
-    const defaults={initialized:'1',mode:'setup',author_username:env.AUTHOR_INITIAL_USERNAME||'owner',author_password:await hashPortalPassword(env,env.AUTHOR_INITIAL_PASSWORD),default_password:'1',support_email:BRAND.support_email||'',from_email:'',from_name:BRAND.store_name,pixel_id:'',currencies:JSON.stringify(SHOP_CURRENCIES),reminder_enabled:'0',public_origin:env.PUBLIC_ORIGIN||'',flutterwave_test:'',flutterwave_live:'',webhook_secret:'',resend_key:'',bachs_test:'',bachs_live:'',bachs_webhook_test:'',bachs_webhook_live:''};
+    const defaults={initialized:'1',mode:'setup',author_username:env.AUTHOR_INITIAL_USERNAME||'owner',author_password:await hashPortalPassword(env,env.AUTHOR_INITIAL_PASSWORD),default_password:'1',support_email:BRAND.support_email||'',from_email:'',from_name:BRAND.store_name,pixel_id:'',currencies:JSON.stringify(SHOP_CURRENCIES),reminder_enabled:'0',public_origin:env.PUBLIC_ORIGIN||'',flutterwave_test:'',flutterwave_live:'',webhook_secret:'',resend_key:'',brevo_key:'',bachs_test:'',bachs_live:'',bachs_webhook_test:'',bachs_webhook_live:''};
     const statements=[];
     for(const [key,value] of Object.entries(defaults)) statements.push(env.DB.prepare('INSERT OR IGNORE INTO settings(key,value) VALUES(?,?)').bind(key,value));
     for(const [position,book] of SEED_BOOKS.entries())statements.push(env.DB.prepare('INSERT OR IGNORE INTO books(id,slug,data,price_ngn,active,position,created_at,updated_at) VALUES(?,?,?,?,1,?,?,?)').bind(book.id,book.slug,JSON.stringify(book),book.price_ngn,position,now(),now()));
@@ -90,7 +90,7 @@ export async function catalog(env,req) {
   const {results:reviews}=await env.DB.prepare('SELECT book_id,name,rating,text,updated_at FROM reviews WHERE hidden=0 ORDER BY updated_at DESC').all();
   const grouped=new Map();for(const r of reviews){const group=grouped.get(r.book_id)||{count:0,sum:0,items:[]};group.count++;group.sum+=r.rating;if(group.items.length<3)group.items.push({name:r.name,rating:r.rating,text:r.text,date:new Date(r.updated_at*1000).toISOString().slice(0,10)});grouped.set(r.book_id,group);}
   const books=rows.map(row=>{const b=rowBook(row),r=grouped.get(b.id);return {...b,...counts.get(b.id),description_html:descriptionFrom(b),prices:bookPrices(row.price_ngn,fx,s),reviews:r?{count:r.count,average:r.sum/r.count,items:r.items}:{count:0,average:0,items:[]}};});
-  const readyCurrencies=activeCurrencies(s),checkoutEnabled=readyCurrencies.length>0&&Boolean(s.mode==='test'||s.resend_key&&s.from_email)&&Boolean(env.CONFIG_KEY);
+  const readyCurrencies=activeCurrencies(s),checkoutEnabled=readyCurrencies.length>0&&Boolean(s.mode==='test'||emailReady(s))&&Boolean(env.CONFIG_KEY);
   const country=/^[A-Z]{2}$/.test(req.cf?.country||'')?req.cf.country:'OT';
-  return {books,featured_book_id:books.some(b=>b.id===s.featured_book_id)?s.featured_book_id:books[0]?.id||'',currencies:readyCurrencies.length?readyCurrencies:configuredCurrencies(s),mode:s.mode,checkout_enabled:checkoutEnabled,cart_enabled:true,reviews_enabled:true,contact_enabled:Boolean(s.resend_key&&s.from_email),ngn_gateway:ngnGateway(s),store_name:BRAND.store_name,tagline:BRAND.tagline,logo_url:BRAND.logo_url,pixel_id:s.pixel_id,conversions_api_enabled:s.meta_enabled==='1'&&Boolean(s.meta_access_token),typography:s.typography||'classic',support_email:s.support_email,country,currency:automaticCurrency(country,s)};
+  return {books,featured_book_id:books.some(b=>b.id===s.featured_book_id)?s.featured_book_id:books[0]?.id||'',currencies:readyCurrencies.length?readyCurrencies:configuredCurrencies(s),mode:s.mode,checkout_enabled:checkoutEnabled,cart_enabled:true,reviews_enabled:true,contact_enabled:emailReady(s),ngn_gateway:ngnGateway(s),store_name:BRAND.store_name,tagline:BRAND.tagline,logo_url:BRAND.logo_url,pixel_id:s.pixel_id,conversions_api_enabled:s.meta_enabled==='1'&&Boolean(s.meta_access_token),typography:s.typography||'classic',support_email:s.support_email,country,currency:automaticCurrency(country,s)};
 }
