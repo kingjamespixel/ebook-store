@@ -272,3 +272,9 @@ test('A second product image adds thumbnails that switch the main image, and sal
  const copy=p.document.querySelector('.bs-book-copy');assert.ok(copy.compareDocumentPosition(gallery)&4,'the gallery follows the description');
  const plain=await page({page:'book',book:extra.id});assert.equal(plain.document.querySelectorAll('[data-photo]').length,0);assert.equal(plain.document.querySelector('.bs-sales-gallery'),null);assert.ok(plain.document.querySelector('.bs-book-photo img'));
 });
+test('Images saved in a book description appear on the book page',async()=>{
+ const book={...extra,id:'book-with-copy-images',slug:'book-with-copy-images',title:'Book with copy images',description_html:'<h2>Start Your 7-Day Journey Today</h2><p>Text before</p><img src="/books/api/cover/testimony1.webp" alt="Reader testimony" loading="lazy"><p>Text after</p>'};
+ const p=await page({page:'book',book:book.id,catalogBooks:[...all,book]});
+ const img=p.document.querySelector('.bs-book-copy img');assert.ok(img);assert.equal(img.getAttribute('src'),'/books/api/cover/testimony1.webp');assert.equal(img.getAttribute('alt'),'Reader testimony');
+ assert.match(p.document.querySelector('.bs-book-copy').textContent,/Text before[\s\S]*Text after/);
+});

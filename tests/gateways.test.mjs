@@ -17,6 +17,12 @@ const outbound=[],brevo=[];let mf,cookie,csrf,sequence=0;
 async function external(req){
   const u=new URL(req.url);outbound.push(u.hostname+u.pathname);
   if(u.hostname==='open.er-api.com')return Response.json({result:'success',base_code:'NGN',time_last_update_unix:Math.floor(Date.now()/1000),rates});
+  if(u.hostname==='images.example'){
+    if(u.pathname==='/testimony.png')return new Response(new Uint8Array([137,80,78,71,13,10,26,10,1,2,3]),{headers:{'Content-Type':'image/png'}});
+    if(u.pathname==='/page.html')return new Response('<html></html>',{headers:{'Content-Type':'text/html'}});
+    if(u.pathname==='/huge.jpg')return new Response(new Uint8Array(16*1024*1024),{headers:{'Content-Type':'image/jpeg'}});
+    return new Response('missing',{status:404});
+  }
   if(u.hostname==='api.brevo.com'&&u.pathname==='/v3/smtp/email'&&req.method==='POST'){
     const body=await req.json();brevo.push({key:req.headers.get('api-key'),authorization:req.headers.get('Authorization'),body});
     if(req.headers.get('api-key')==='xkeysib-good-test-key')return Response.json({messageId:'<test.'+brevo.length+'@relay.example>'},{status:201});
@@ -110,6 +116,23 @@ test('Books keep a second product image and up to 12 uploaded sales page images,
   }
   saved=await admin('books',{method:'POST',data:{...base,id,summary:'Edited without touching images'}});assert.equal(saved.status,200);book=await find();assert.equal(book.image2_url,second);assert.equal(book.gallery.length,2);
   saved=await admin('books',{method:'POST',data:{...base,id,image2_url:'',gallery:[]}});assert.equal(saved.status,200);book=await find();assert.equal(book.image2_url,undefined);assert.equal(book.image2_small_url,undefined);assert.deepEqual(book.gallery,[]);
+});
+
+test('Pasted web images are copied only for the signed-in owner, and descriptions keep only store images',{skip:!bachsOnly},async()=>{
+  const fetchImage=(url,headers={})=>call('/books/api/admin/fetch-image',{method:'POST',data:{url},headers});
+  assert.equal((await fetchImage('https://images.example/testimony.png')).status,401);
+  const ok=await admin('fetch-image',{method:'POST',data:{url:'https://images.example/testimony.png'}});assert.equal(ok.status,200);assert.equal(ok.headers.get('Content-Type'),'image/png');assert.equal((await ok.arrayBuffer()).byteLength,11);
+  const noCsrf=await call('/books/api/admin/fetch-image',{method:'POST',data:{url:'https://images.example/testimony.png'},headers:{Cookie:cookie}});assert.equal(noCsrf.status,403);
+  for(const [url,status] of [['https://images.example/page.html',415],['https://images.example/missing.png',502],['https://images.example/huge.jpg',413],['http://localhost/a.png',400],['http://127.0.0.1/a.png',400],['http://192.168.0.1/a.png',400],['file:///etc/passwd',400],['https://user:pass@images.example/testimony.png',400],['not a url',400]]){
+    const r=await admin('fetch-image',{method:'POST',data:{url}});assert.equal(r.status,status,url);
+  }
+  const webp=await readFile(root+'tests/fixtures/cover.webp');
+  const stored=(await (await admin('upload?kind=cover',{method:'POST',raw:webp,headers:{'Content-Type':'image/webp'}})).json()).url;
+  const saved=await admin('books',{method:'POST',data:{title:'Book with pasted images',slug:'book-with-pasted-images',price_ngn:2500,active:true,description_html:'<h2>Testimonies</h2><p>Great book<img src="'+stored+'" alt="Reader message"></p><p><img src="https://images.example/testimony.png"><img src="data:image/png;base64,AAAA"></p>'}});
+  assert.equal(saved.status,200);const {id}=await saved.json();
+  const book=(await (await admin('books')).json()).books.find(b=>b.id===id);
+  assert.match(book.description_html,new RegExp('<img src="'+stored.replace(/[.*+?^${}()|[\]\\/]/g,'\\$&')+'" alt="Reader message" loading="lazy">'));
+  assert.doesNotMatch(book.description_html,/images\.example|data:image/);
 });
 
 test('A Bachs-only store has no Flutterwave webhook and no Flutterwave form target',{skip:!bachsOnly},async()=>{

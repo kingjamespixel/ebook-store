@@ -154,6 +154,21 @@ export async function authorApi(env,req,path) {
   if(path.startsWith('admin/books/')&&req.method==='DELETE'){
     await env.DB.prepare('UPDATE books SET active=0,updated_at=? WHERE id=?').bind(now(),path.slice(12)).run();return json({ok:true});
   }
+  // Owner-only helper for images pasted into a description from another website.
+  // It returns the image so the portal can compress it and upload it to this store.
+  if(path==='admin/fetch-image'&&req.method==='POST'){
+    await rateLimit(env,'fetch-image/'+auth.token_hash,60,300);
+    const data=await bodyJson(req,4000);let u;try{u=new URL(String(data.url||''));}catch{}
+    const host=u?.hostname.toLowerCase()||'';
+    assert(u&&['https:','http:'].includes(u.protocol)&&!u.username&&!u.password&&host.includes('.')&&!/^\[|^(localhost|0\.|10\.|127\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host)&&!host.endsWith('.local')&&!host.endsWith('.internal'),400,'This image link cannot be copied. Save the image to your device and use Insert image.');
+    let response;try{response=await fetch(u.href,{headers:{Accept:'image/avif,image/webp,image/png,image/jpeg,image/gif,image/*'},redirect:'follow',signal:AbortSignal.timeout(15000)});}catch{}
+    assert(response?.ok,502,'This image could not be copied from its website. Save it to your device and use Insert image.');
+    const type=(response.headers.get('content-type')||'').split(';')[0].trim().toLowerCase();
+    if(!/^image\/(png|jpeg|gif|webp|avif|bmp)$/.test(type)){await response.body?.cancel();throw Object.assign(new Error('That link is not an image. Save the image to your device and use Insert image.'),{status:415});}
+    const reader=response.body.getReader(),chunks=[];let total=0;
+    for(;;){const {done,value}=await reader.read();if(done)break;total+=value.byteLength;if(total>15*1024*1024){await reader.cancel();throw Object.assign(new Error('This image is larger than 15 MB. Save a smaller copy and use Insert image.'),{status:413});}chunks.push(value);}
+    return new Response(new Blob(chunks,{type}),{headers:{'Content-Type':type,'Cache-Control':'private, no-store'}});
+  }
   if(path==='admin/upload'&&req.method==='POST'){
     const kind=new URL(req.url).searchParams.get('kind');assert(['cover','pdf'].includes(kind),400,'Choose a cover or PDF.');
     const bytes=await limitedBytes(req,kind==='pdf'?20*1024*1024:750*1024);assert(bytes.length>0,400,'Choose a file to upload.');

@@ -57,3 +57,4 @@ dialog{max-width:calc(100vw - 26px);max-height:92vh;max-height:92dvh;overflow:au
  .font-preview{padding:20px}
 }
 .gallery-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px;margin-top:12px}.gallery-item{margin:0;display:grid;gap:8px;align-content:start}.gallery-item img{width:100%;aspect-ratio:3/4;object-fit:cover;border:1px solid var(--line);border-radius:8px;background:#fff}.gallery-item .btn{padding:6px 10px;font-size:13px}#image2-preview[hidden],[data-remove-image2][hidden]{display:none}
+.editor img{max-width:100%;height:auto;display:block;margin:12px 0;border-radius:8px}.image-pending,.image-failed{display:inline-block;padding:6px 10px;margin:6px 0;border-radius:6px;font-size:13px}.image-pending{background:var(--sage);color:var(--muted)}.image-failed{background:#fde8e6;color:#8a2a1f}

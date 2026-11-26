@@ -15,16 +15,17 @@ async function portal(enabled=false,extra={}){
  window.HTMLElement.prototype.reset=function(){for(const el of this.querySelectorAll('[name]'))el.value=el.getAttribute('value')||'';};
  const settings={username:'owner',mode:'setup',currencies:['NGN'],active_currencies:[],typography:'classic',public_origin:'https://store.example.invalid',support_email:'support@example.invalid',mfa_enabled:enabled,...extra};
  const fetch=async(url,options={})=>{
-  const data=options.body?JSON.parse(options.body):undefined;requests.push({url,options,data});let response={ok:true};
+  const data=typeof options.body==='string'?JSON.parse(options.body):options.body;requests.push({url,options,data});let response={ok:true};
   if(url.endsWith('admin/session'))response={authenticated:true,csrf:'first-csrf'};
   if(url.endsWith('admin/settings'))response=settings;
+  if(extra.respond){const custom=await extra.respond(url,options,data);if(custom)return custom;}
   if(url.endsWith('admin/books'))response=options.method==='POST'?{ok:true,id:data.id||'new-book',slug:data.slug,url:'https://store.example.invalid/books/'+data.slug+'/'}:{books:extra.books||[]};
   if(url.endsWith('security/enroll'))response={secret:'TESTONLYSETUPKEY234567TESTONLYKEY',account:'owner',issuer:'Bookshop'};
   if(url.endsWith('security/enable')){settings.mfa_enabled=true;response={ok:true,csrf:'replacement-csrf',recovery_codes:['FIRST-FAKE-CODE','SECOND-FAKE-CODE']};}
   if(url.endsWith('security/recovery'))response={ok:true,csrf:'recovery-csrf',recovery_codes:['NEW-FAKE-CODE']};
   return Response.json(response);
  };
- const context=vm.createContext({window,document,fetch,FormData:FormValues,location:{origin:'https://store.example.invalid'},URLSearchParams,Intl,Date,setTimeout:()=>1,clearTimeout:()=>{},confirm:()=>true});
+ const context=vm.createContext({window,document,fetch,FormData:FormValues,location:{origin:'https://store.example.invalid'},URLSearchParams,Intl,Date,setTimeout:()=>1,clearTimeout:()=>{},confirm:()=>true,...(extra.context||{})});
  await vm.runInContext('(async()=>{'+source+'})()',context);document.querySelector('[data-tab="settings"]').dispatchEvent(new window.Event('click',{bubbles:true}));await tick();
  return {window,document,requests,settings};
 }
@@ -72,4 +73,32 @@ test('A Brevo store asks for a Brevo API key instead of a Resend key',async()=>{
  assert.ok(brevo.document.querySelector('[name="brevo_key"]'));assert.equal(brevo.document.querySelector('[name="resend_key"]'),null);
  const text=brevo.document.getElementById('portal').textContent;assert.match(text,/Brevo API key/);assert.match(text,/Block unknown IP addresses/);assert.doesNotMatch(text,/Resend/);
  const resend=await portal(false,{email_provider:'resend'});assert.ok(resend.document.querySelector('[name="resend_key"]'));assert.equal(resend.document.querySelector('[name="brevo_key"]'),null);
+});
+test('Pasting text with images copies each image into the store, and Insert image adds files at the cursor',async()=>{
+ let uploads=0;const fetched=[];
+ const respond=async(url,options,data)=>{
+  if(url.endsWith('admin/upload?kind=cover')){uploads++;return Response.json({url:'/books/api/cover/pasted'+uploads+'.webp',bytes:10});}
+  if(url.endsWith('admin/fetch-image')){fetched.push(data.url);if(data.url.includes('broken'))return Response.json({message:'This image could not be copied from its website.'},{status:502});return new Response(new Blob([new Uint8Array([1,2,3])],{type:'image/png'}),{headers:{'Content-Type':'image/png'}});}
+ };
+ const {parseHTML:parse}=await import('linkedom');
+ const context={compressCover:async blob=>blob,Blob,atob,DOMParser:class{parseFromString(html){return parse('<!doctype html><html><body>'+html+'</body></html>').document;}},getSelection:()=>({rangeCount:0,removeAllRanges(){},addRange(){},anchorNode:null})};
+ const p=await portal(false,{respond,context});
+ const click=selector=>{const el=p.document.querySelector(selector);assert.ok(el,selector);el.dispatchEvent(new p.window.Event('click',{bubbles:true}));};
+ click('[data-tab="books"]');await tick();click('[data-add-book]');await tick();
+ const editor=p.document.getElementById('description');editor.innerHTML='';
+ p.document.createRange=()=>({commonAncestorContainer:editor,selectNodeContents(){},collapse(){},deleteContents(){},insertNode(node){editor.append(node);},setStartAfter(){},cloneRange(){return this;}});
+ const html='<p>Amazing testimony</p><img src="https://images.example/one.png" alt="First reader"><script>alert(1)</script><img src="data:image/png;base64,AQID" alt=""><img src="https://broken.example/x.png">';
+ const paste=new p.window.Event('paste',{bubbles:true,cancelable:true});paste.clipboardData={files:[],getData:type=>type==='text/html'?html:''};editor.dispatchEvent(paste);
+ assert.equal(paste.defaultPrevented,true);
+ for(let i=0;i<4;i++)await tick();
+ const imgs=[...editor.querySelectorAll('img')].map(img=>[img.getAttribute('src'),img.getAttribute('alt')]);
+ assert.equal(imgs.length,2);assert.deepEqual(imgs.map(i=>i[1]),['First reader','']);assert.ok(imgs.every(i=>['/books/api/cover/pasted1.webp','/books/api/cover/pasted2.webp'].includes(i[0])));assert.notEqual(imgs[0][0],imgs[1][0]);
+ assert.deepEqual(fetched,['https://images.example/one.png','https://broken.example/x.png']);
+ assert.match(editor.textContent,/Amazing testimony/);assert.equal(editor.querySelector('script'),null);
+ assert.match(editor.querySelector('.image-failed').textContent,/could not be copied/);assert.equal(editor.querySelector('[data-pending-image]'),null);
+ const file=new Blob([new Uint8Array([4,5,6])],{type:'image/jpeg'}),input=p.document.getElementById('description-image-file');
+ assert.ok(input.hasAttribute('multiple'));Object.defineProperty(input,'files',{configurable:true,value:[file]});input.dispatchEvent(new p.window.Event('change',{bubbles:true}));
+ for(let i=0;i<4;i++)await tick();
+ assert.equal(editor.querySelectorAll('img').length,3);assert.equal(editor.querySelectorAll('img')[2].getAttribute('src'),'/books/api/cover/pasted3.webp');
+ const plain=new p.window.Event('paste',{bubbles:true,cancelable:true});plain.clipboardData={files:[],getData:type=>type==='text/plain'?'Just words':''};editor.dispatchEvent(plain);assert.equal(plain.defaultPrevented,false);
 });

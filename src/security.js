@@ -72,14 +72,23 @@ export async function limitedBytes(req,max) {
 export async function bodyJson(req,max=200000) {
   try{return JSON.parse(new TextDecoder().decode(await limitedBytes(req,max)));}catch(e){if(e instanceof HttpError)throw e;throw new HttpError(400,'Please check the submitted details.');}
 }
-const allowedTags=new Set('p br strong b em i u s ul ol li h1 h2 h3 h4 span div blockquote'.split(' '));
+const allowedTags=new Set('p br strong b em i u s ul ol li h1 h2 h3 h4 span div blockquote img'.split(' '));
+const attribute=(attrs,name)=>{const m=attrs.match(new RegExp('\\b'+name+'\\s*=\\s*(?:"([^"]*)"|\'([^\']*)\')','i'));return m?(m[1]??m[2]??''):null;};
+const decodeEntities=value=>value.replace(/&(amp|quot|#39|lt|gt);/g,(_,e)=>({amp:'&',quot:'"','#39':"'",lt:'<',gt:'>'}[e]));
+// Images in descriptions must be files uploaded to this store. Any other source is dropped.
+export const STORE_IMAGE=/^\/books\/api\/cover\/[A-Za-z0-9_-]+\.webp$/;
 const color=v=>/^(#[a-f0-9]{3,8}|(?:rgb|rgba)\([0-9., %]+\)|[a-z]{3,20})$/i.test(v)&&!['inherit','expression','url','javascript'].includes(v.toLowerCase());
 export function sanitizeHtml(value) {
   const html=String(value||'').slice(0,100000).replace(/<(script|style|iframe|object|svg|math)[\s\S]*?<\/\1\s*>/gi,'');
   return html.split(/(<[^>]*>)/g).map(part=>{
     if(!part.startsWith('<'))return part.replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const m=part.match(/^<\s*(\/?)\s*([a-z0-9]+)([^>]*)>$/i);if(!m||!allowedTags.has(m[2].toLowerCase()))return '';
-    const tag=m[2].toLowerCase();if(m[1])return tag==='br'?'':`</${tag}>`;
+    const tag=m[2].toLowerCase();if(m[1])return tag==='br'||tag==='img'?'':`</${tag}>`;
+    if(tag==='img'){
+      const src=attribute(m[3],'src');if(!src||!STORE_IMAGE.test(src))return '';
+      const alt=decodeEntities(attribute(m[3],'alt')||'').replace(/[\r\n\t]+/g,' ').trim().slice(0,200);
+      return '<img src="'+src+'" alt="'+escapeHtml(alt)+'" loading="lazy">';
+    }
     const sm=m[3].match(/\bstyle\s*=\s*(?:"([^"]*)"|'([^']*)')/i), styles=[];
     for(const rule of (sm?(sm[1]||sm[2]||''):'').split(';')){
       const colon=rule.indexOf(':');if(colon<0)continue;
