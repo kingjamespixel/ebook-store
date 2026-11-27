@@ -25,7 +25,7 @@ async function portal(enabled=false,extra={}){
   if(url.endsWith('security/recovery'))response={ok:true,csrf:'recovery-csrf',recovery_codes:['NEW-FAKE-CODE']};
   return Response.json(response);
  };
- const context=vm.createContext({window,document,fetch,FormData:FormValues,location:{origin:'https://store.example.invalid'},URLSearchParams,Intl,Date,setTimeout:()=>1,clearTimeout:()=>{},confirm:()=>true,...(extra.context||{})});
+ const context=vm.createContext({window,document,fetch,FormData:FormValues,location:{origin:'https://store.example.invalid',host:'store.example.invalid'},URLSearchParams,Intl,Date,setTimeout:()=>1,clearTimeout:()=>{},confirm:()=>true,...(extra.context||{})});
  await vm.runInContext('(async()=>{'+source+'})()',context);document.querySelector('[data-tab="settings"]').dispatchEvent(new window.Event('click',{bubbles:true}));await tick();
  return {window,document,requests,settings};
 }
@@ -101,4 +101,16 @@ test('Pasting text with images copies each image into the store, and Insert imag
  for(let i=0;i<4;i++)await tick();
  assert.equal(editor.querySelectorAll('img').length,3);assert.equal(editor.querySelectorAll('img')[2].getAttribute('src'),'/books/api/cover/pasted3.webp');
  const plain=new p.window.Event('paste',{bubbles:true,cancelable:true});plain.clipboardData={files:[],getData:type=>type==='text/plain'?'Just words':''};editor.dispatchEvent(plain);assert.equal(plain.defaultPrevented,false);
+});
+test('Book list shows and copies the short link, and new books get a short suggested link',async()=>{
+ const copied=[];
+ const book={id:'book-1',title:'Moving on',slug:'moving-on',author:'Owner',category:'Books',price_ngn:1500,active:true,position:0,description_html:'<p>About</p>',cross_sell:[]};
+ const p=await portal(false,{books:[book],context:{navigator:{clipboard:{writeText:async text=>{copied.push(text);}}}}});
+ const click=selector=>{const el=p.document.querySelector(selector);assert.ok(el,selector);el.dispatchEvent(new p.window.Event('click',{bubbles:true}));};
+ click('[data-tab="books"]');await tick();
+ const link=p.document.querySelector('.book-link');assert.equal(link.textContent,'store.example.invalid/moving-on');assert.equal(link.getAttribute('href'),'/moving-on');
+ click('[data-copy-link="moving-on"]');await tick();assert.deepEqual(copied,['https://store.example.invalid/moving-on']);
+ click('[data-add-book]');await tick();
+ const title=p.document.getElementById('title');title.value='7 Days Prayer and Devotion for Financial Breakthrough Before 2026';title.dispatchEvent(new p.window.Event('input',{bubbles:true}));
+ assert.equal(p.document.getElementById('slug').value,'7-days-prayer-and');
 });

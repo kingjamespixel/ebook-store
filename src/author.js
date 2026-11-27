@@ -119,7 +119,7 @@ export async function authorApi(env,req,path) {
     const input=await bodyJson(req),id=input.id||'book-'+crypto.randomUUID(),old=await env.DB.prepare('SELECT * FROM books WHERE id=?').bind(id).first();
     assert(old||!input.id,404,'This book no longer exists.');
     const slug=String(input.slug||'').trim().toLowerCase();
-    assert(/^[a-z0-9][a-z0-9-]{0,99}$/.test(slug)&&!['api','assets','author','checkout','download','contact','privacy','terms','index.html','store.js','store.css'].includes(slug),400,'Use a short book link with letters, numbers and hyphens.');
+    assert(/^[a-z0-9][a-z0-9-]{0,99}$/.test(slug)&&!['api','assets','author','books','checkout','download','contact','privacy','terms','index.html','store.js','store.css'].includes(slug),400,'Use a short book link with letters, numbers and hyphens.');
     const taken=await env.DB.prepare('SELECT id AS book_id FROM books WHERE slug=? UNION SELECT book_id FROM slug_aliases WHERE slug=?').bind(slug,slug).all();assert(taken.results.every(r=>r.book_id===id),409,'Another book already uses this link.');
     const title=String(input.title||'').trim(),price=Number(input.price_ngn);assert(title.length>=2&&title.length<=200&&Number.isFinite(price)&&price>0&&price<=100000000,400,'Enter a book title and a valid naira price.');
     const base=old?JSON.parse(old.data):{image:'placeholder.svg',starting_sales:0,sales_label:'0 copies sold',overview:[],inside:[],benefits:[],audience:[],shift:[],inside_icons:[]};

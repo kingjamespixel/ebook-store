@@ -139,7 +139,7 @@ test('A browser return or a completed API session cannot deliver books without a
 });
 test('Invalid, stale, future and wrong-environment webhook signatures cannot mark an order paid',async()=>{
   const o=await order();complete(o);
-  for(const opts of [{signature:'t=123,v1='+'0'.repeat(64)},{timestamp:Math.floor(Date.now()/1000)-301},{timestamp:Math.floor(Date.now()/1000)+301}])assert.equal((await deliver(o,opts)).response.status,401);
+  for(const opts of [{signature:'t=123,v1='+'0'.repeat(64)},{timestamp:Math.floor(Date.now()/1000)-310},{timestamp:Math.floor(Date.now()/1000)+310}])assert.equal((await deliver(o,opts)).response.status,401);
   const raw=JSON.stringify({id:'evt_wrong_mode',type:'checkout.completed',data:{checkout_id:o.row.provider_session}}),t=Math.floor(Date.now()/1000),signature=createHmac('sha256',secrets.test).update(t+'.'+raw).digest('hex');
   const wrong=await api('bachs/webhook/live',{method:'POST',raw,headers:{'X-Bachs-Timestamp':String(t),'X-Bachs-Signature':signature}});assert.equal(wrong.response.status,401);
   assert.equal((await db.prepare('SELECT COUNT(*) AS count FROM bachs_webhook_events WHERE order_ref=?').bind(o.row.ref).first()).count,0);

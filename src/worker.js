@@ -33,6 +33,14 @@ async function handle(env,req,ctx) {
   if(path===PORTAL||path===BASE+PORTAL||path===BASE+PORTAL+'/')return Response.redirect(url.origin+PORTAL+'/'+url.search,301);
   if(path===PORTAL+'/')return portalPage(env,req,url);
   if(path===BASE)return Response.redirect(url.origin+BASE+'/'+url.search,308);
+  // Short book links: /<book-link> opens /books/<book-link>/ and keeps any tracking query.
+  // A temporary redirect, so a link can later point to another book without browsers remembering the old one.
+  const short=path.match(/^\/([a-z0-9][a-z0-9-]{0,99})\/?$/i);
+  if(short&&env.DB){
+    await initialize(env);const slug=short[1].toLowerCase();
+    const book=await env.DB.prepare('SELECT slug FROM books WHERE slug=? AND active=1').bind(slug).first()||await env.DB.prepare('SELECT b.slug FROM slug_aliases a JOIN books b ON b.id=a.book_id WHERE a.slug=? AND b.active=1').bind(slug).first();
+    if(book)return Response.redirect(url.origin+BASE+'/'+book.slug+'/'+url.search,302);
+  }
   if(!path.startsWith(BASE+'/'))return new Response('Page not found',{status:404});
   const relative=path.slice(BASE.length);
   if(/^\/(assets\/[a-z0-9-]+\.(?:webp|svg|png|jpg)|store\.(js|css)|author\.(js|css)|upload\.js|tracking\.js|pixel-frame\.(html|js))$/.test(relative))return env.ASSETS.fetch(new Request(url.origin+relative,req));

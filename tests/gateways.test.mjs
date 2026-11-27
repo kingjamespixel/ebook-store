@@ -135,6 +135,20 @@ test('Pasted web images are copied only for the signed-in owner, and description
   assert.doesNotMatch(book.description_html,/images\.example|data:image/);
 });
 
+test('Short book links open the book page, keep tracking codes and follow renamed links',{skip:!bachsOnly},async()=>{
+  const created=await admin('books',{method:'POST',data:{title:'Moving on',slug:'moving-on-short',price_ngn:1500,active:true}});assert.equal(created.status,200);const {id}=await created.json();
+  for(const [path,location] of [['/moving-on-short','/books/moving-on-short/'],['/moving-on-short/','/books/moving-on-short/'],['/Moving-On-Short','/books/moving-on-short/'],['/moving-on-short?fbclid=abc&utm_source=wa','/books/moving-on-short/?fbclid=abc&utm_source=wa']]){
+    const r=await call(path);assert.equal(r.status,302,path);assert.equal(r.headers.get('Location'),origin+location,path);
+  }
+  const renamed=await admin('books',{method:'POST',data:{id,title:'Moving on',slug:'moveon',price_ngn:1500,active:true}});assert.equal(renamed.status,200);
+  let r=await call('/moving-on-short');assert.equal(r.headers.get('Location'),origin+'/books/moveon/');
+  r=await call('/moveon');assert.equal(r.headers.get('Location'),origin+'/books/moveon/');
+  assert.equal((await call('/no-such-book')).status,404);
+  assert.equal((await call('/author')).status,301);assert.equal((await call('/author/')).status,200);assert.equal((await call('/')).headers.get('Location'),origin+'/books/');
+  const reserved=await admin('books',{method:'POST',data:{title:'Clash',slug:'books',price_ngn:1000,active:true}});assert.equal(reserved.status,400);
+  await admin('books/'+id,{method:'DELETE'});assert.equal((await call('/moveon')).status,404);
+});
+
 test('A Bachs-only store has no Flutterwave webhook and no Flutterwave form target',{skip:!bachsOnly},async()=>{
   const hook=await call('/books/api/webhook',{method:'POST',headers:{'verif-hash':'only-a-test-webhook-hash'},data:{event:'charge.completed',data:{id:1,tx_ref:'BS-test',status:'successful'}}});assert.equal(hook.status,404);
   const page=await call('/books/');assert.equal(page.status,200);assert.equal(page.headers.get('Content-Security-Policy').includes('flutterwave'),false);
